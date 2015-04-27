@@ -157,23 +157,33 @@ public class AmazementMain extends ApplicationAdapter implements InputProcessor{
 		}
 
 		private void setPieces(){
-			addMazePiece(250, 500, 0);
+			/*addMazePiece(250, 500, 0);
 			addMazePiece(350, 500, 90);
 			addMazePiece(450, 500, 180);
 			addMazePiece(550, 500, 270);
 			addMazePiece(750, 500, 0);
 			addMazePiece(750, 500, 90);
-			addMazePiece(750, 500, 180);
-			addMazePiece(750, 500, 270);
-			//addMazePiece(100, 100, 270);
-			//addMazePiece(0, 100, 0);
-			//addMazePiece(100, 100, 90);
-			//addMazePiece(100, 200, 90);
-			//addMazePiece(100, 400, 270);
+			addMazePiece(750, 500, 180);*/
+			//addMazePiece(750, 500, 270);
+			//addMazePiece(1014, 500, 180);
+			addMazePiece(2, 5, 0);
+			addMazePiece(3, 5, 90);
+			addMazePiece(4, 5, 180);
+			addMazePiece(5, 5, 270);
+			addMazePiece(7, 5, 0);
+			addMazePiece(7, 5, 90);
+			addMazePiece(7, 5, 180);
+			addMazePiece(8, 5, 0);
+			addMazePiece(10, 5, 180);
+		}
+		
+		private Vector2 snapToGrid(int x, int y){
+			return new Vector2((x*100)+14, (y*100)+14);
 		}
 
 		private void addMazePiece(int x, int y, int degrees){
-			pieces.add(new MazePiece(x, y, degrees));
+			Vector2 vec = snapToGrid(x, y);
+			pieces.add(new MazePiece((int)vec.x, (int)vec.y, degrees));
 		}
 
 		class MazePiece{
