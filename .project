@@ -26,6 +26,11 @@
 			<locationURI>PARENT-3-PROJECT_LOC/Desktop/Amazement/map.tmx</locationURI>
 		</link>
 		<link>
+			<name>assets/pew.wav</name>
+			<type>1</type>
+			<locationURI>PARENT-3-PROJECT_LOC/Desktop/Amazement/pew.wav</locationURI>
+		</link>
+		<link>
 			<name>assets/pik.png</name>
 			<type>1</type>
 			<locationURI>PARENT-3-PROJECT_LOC/Desktop/Amazement/pik.png</locationURI>
