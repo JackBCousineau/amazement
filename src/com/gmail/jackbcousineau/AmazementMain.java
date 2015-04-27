@@ -91,6 +91,30 @@ public class AmazementMain extends ApplicationAdapter implements InputProcessor{
 
 	class Maze{
 
+		class MazeLevel {
+
+			int level;
+			Color color;
+
+			public MazeLevel(int level, Color color){
+				this.level = level;
+				this.color = color;
+				print("Playing level " + level);
+			}
+			
+			public void nextLevel(){
+				playerBody.setLinearVelocity(0, 0);
+				playerBody.setTransform(100, 100, playerBody.getAngle());
+				level++;
+				print("Playing level " + level);
+				if(color == Color.BLACK) color = Color.WHITE;
+				else color = Color.BLACK;
+				resetAll();
+			}
+		}
+
+		MazeLevel mazeLevel = new MazeLevel(1, Color.BLACK);
+
 		Array<MazePiece> pieces = new Array<MazePiece>();
 		Timer timer = new Timer();
 
@@ -114,8 +138,17 @@ public class AmazementMain extends ApplicationAdapter implements InputProcessor{
 				p.rotateRight();
 			}
 		}
+		
+		public void resetAll(){
+			pieces.clear();
+			setPieces();
+		}
 
 		public Maze(){
+			setPieces();
+		}
+		
+		private void setPieces(){
 			addMazePiece(250, 500, 0);
 			addMazePiece(350, 500, 90);
 			addMazePiece(450, 500, 180);
@@ -130,7 +163,7 @@ public class AmazementMain extends ApplicationAdapter implements InputProcessor{
 
 			public Body piece;
 
-			int x, y, x2, y2, degrees = 0;
+			int x, y, x2, y2, degrees = 0, originalDegrees;
 
 			boolean isMoving = false;
 
@@ -141,6 +174,7 @@ public class AmazementMain extends ApplicationAdapter implements InputProcessor{
 				this.y = y;
 				x2 = x;
 				y2 = y;
+				originalDegrees = degrees;
 				EdgeShape lineShape = new EdgeShape();
 				BodyDef lineBodyDef = new BodyDef();
 				lineBodyDef.type = BodyType.KinematicBody;
@@ -211,15 +245,6 @@ public class AmazementMain extends ApplicationAdapter implements InputProcessor{
 					this.direction = direction;
 				}
 
-				/*private float getCorrectAngle(){
-					//float angle = piece.getAngle() + (MathUtils.degreesToRadians * degrees);
-					//print("Angle in degrees: " + Math.ceil((MathUtils.radiansToDegrees * angle)%360));
-					//return MathUtils.degreesToRadians*(Math.ceil((MathUtils.radiansToDegrees * rad)%360));
-					float angle = piece.getAngle();
-					//print("Raw angle: " + angle  + ", " + MathUtils.radiansToDegrees*angle);
-					return angle;
-				}*/
-
 				@Override
 				public void run() {
 					float angle = piece.getAngle();
@@ -229,7 +254,6 @@ public class AmazementMain extends ApplicationAdapter implements InputProcessor{
 					else{
 						piece.setAngularVelocity(0);
 						piece.setTransform(x, y, desiredAngle);
-						//double rad = MathUtils.degreesToRadians*degrees;
 						if(degrees == 180||degrees == 0){
 							y2 = (int)y;
 							if(degrees == 0) x2++;
@@ -260,7 +284,7 @@ public class AmazementMain extends ApplicationAdapter implements InputProcessor{
 
 	World world;
 	Box2DDebugRenderer debugRenderer;
-	Body playerBody, wallBody, edgeBody2, lineBody, objectiveBody;
+	Body playerBody, objectiveBody;
 	EdgeBody edgeBody;
 	Array<Body> bodies = new Array<Body>();
 	Maze maze;
@@ -270,22 +294,6 @@ public class AmazementMain extends ApplicationAdapter implements InputProcessor{
 	Timer timer;
 
 	private void createPlayer(){
-		/*
-		PolygonShape boxShape = new PolygonShape();
-		boxShape.setAsBox(20, 20);
-		BodyDef boxBodyDef = new BodyDef();
-		boxBodyDef.position.set(500, 500);
-		boxBodyDef.angle = MathUtils.PI / 32;
-		boxBodyDef.type = BodyType.DynamicBody;
-		boxBodyDef.fixedRotation = false;
-		Body boxBody = world.createBody(boxBodyDef);
-		FixtureDef boxFixtureDef = new FixtureDef();
-		boxFixtureDef.shape = boxShape;
-		boxFixtureDef.restitution = 0.75f;
-		boxFixtureDef.density = 2.0f;
-		boxBody.createFixture(boxFixtureDef);
-		boxShape.dispose();
-		 */
 		texture = new Texture(Gdx.files.internal("pik.png"));
 		playerSprite = new Sprite(texture);
 
@@ -293,7 +301,6 @@ public class AmazementMain extends ApplicationAdapter implements InputProcessor{
 		boxShape.setAsBox(20, 20);
 		BodyDef bodyDef = new BodyDef();
 		bodyDef.position.set(50, 50);
-		//boxBodyDef.angle = MathUtils.PI / 32;
 		bodyDef.type = BodyType.DynamicBody;
 		//boxBodyDef.fixedRotation = false;
 		playerBody = world.createBody(bodyDef);
@@ -345,7 +352,6 @@ public class AmazementMain extends ApplicationAdapter implements InputProcessor{
 				if(b.getPosition().x > 1024||b.getPosition().y > 1024){
 					//sprite.setPosition(500, 500);
 					resetPosition = true;
-					print("Next level");
 				}
 				/*drawCollision = true;
 				timer.schedule(new TimerTask(){
@@ -427,15 +433,16 @@ public class AmazementMain extends ApplicationAdapter implements InputProcessor{
 		//}
 		if(resetPosition){
 			resetPosition = false;
-			playerBody.setTransform(100, 100, playerBody.getAngle());
+			maze.mazeLevel.nextLevel();
+			//playerBody.setTransform(100, 100, playerBody.getAngle());
 			//print(body.getLinearVelocity() + "");
-			playerBody.setLinearVelocity(100, 100);
+			//playerBody.setLinearVelocity(100, 100);
 			//body.apLinearImpulse(new Vector2(5, 5), body.getPosition(), false);
 		}
 		sb.end();
 		ShapeRenderer shapeRenderer = new ShapeRenderer();
 		shapeRenderer.begin(ShapeType.Line);
-		shapeRenderer.setColor(Color.BLACK);
+		shapeRenderer.setColor(maze.mazeLevel.color);
 		for(MazePiece mp : maze.pieces){
 			Vector2 pos = mp.piece.getPosition();
 			shapeRenderer.line(pos.x, pos.y, mp.x2, mp.y2);
