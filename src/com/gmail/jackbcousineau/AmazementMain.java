@@ -321,15 +321,6 @@ public class AmazementMain extends ApplicationAdapter implements InputProcessor{
 				displayLevel = false;
 			}}, 1500);
 	}
-	
-	/*class DisplayLevelTask extends TimerTask{
-
-
-		@Override
-		public void run() {
-			displayLevel = false;
-		}
-	}*/
 
 	private void createPlayer(){
 		texture = new Texture(Gdx.files.internal("pik.png"));
