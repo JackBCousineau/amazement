@@ -78,27 +78,12 @@ public class AmazementMain extends ApplicationAdapter implements InputProcessor{
 			else if(i == 6) lineShape.set(width+50, height-100, width+50, height+50);
 			else if(i == 7) lineShape.set(width-100, height, width-100, height+50);
 			else if(i == 8) lineShape.set(width, height-100, width+50, height-100);
-			/*switch(i){
-			case 1:
-				lineShape.set(0, height-1, width, height);
-				break;
-			case 2:
-				lineShape.set(width, 0, width-1, height);
-				break;
-			case 3:
-				lineShape.set(0, 0, width, 0);
-				break;
-			case 4:
-				lineShape.set(0, 0, 0, height);
-				break;
-			}*/
 			boxFixtureDef.restitution = 0.75f;
 			//boxFixtureDef.restitution = 100f;
 			boxFixtureDef.density = 2.0f;
 			boxFixtureDef.shape = lineShape;
 			lineBody.createFixture(boxFixtureDef);
 			lineShape.dispose();
-			//lineBody.setTransform(lineBody.getPosition().add(-500, -500), lineBody.getAngle());
 			return lineBody;
 		}
 
@@ -117,76 +102,102 @@ public class AmazementMain extends ApplicationAdapter implements InputProcessor{
 		}
 
 		public void turnAllLeft(){
-			print("TURNING ALL LEFT");
+			//print("TURNING ALL LEFT");
 			for(MazePiece p : pieces){
 				p.rotateLeft();
 			}
 		}
 
 		public void turnAllRight(){
-			print("TURNING ALL RIGHT");
+			//print("TURNING ALL RIGHT");
 			for(MazePiece p : pieces){
 				p.rotateRight();
 			}
 		}
 
 		public Maze(){
-			//pieces.add(new MazePiece(500, 50, true));
-			//pieces.add(new MazePiece(700, 50, false));
-			addMazePiece(500, 50, true);
-			addMazePiece(700, 50, false);
-			addMazePiece(100, 100, false);
-			addMazePiece(100, 200, false);
+			addMazePiece(250, 500, 0);
+			addMazePiece(350, 500, 90);
+			addMazePiece(450, 500, 180);
+			addMazePiece(550, 500, 270);
 		}
-		
-		private void addMazePiece(int x, int y, boolean orientation){
-			pieces.add(new MazePiece(x, y, orientation));
+
+		private void addMazePiece(int x, int y, int degrees){
+			pieces.add(new MazePiece(x, y, degrees));
 		}
 
 		class MazePiece{
 
 			public Body piece;
 
+			int x, y, x2, y2, degrees = 0;
+
+			boolean isMoving = false;
+
 			//orientation: 1 = left-right horizontal, 2 = right-left horizontal, 3 = bottom-up vertical, 4 = top-down vertical
 			//orientation: true = horizontal, false = vertical
-			public MazePiece(float x, float y, boolean orientation){
+			public MazePiece(int x, int y, int degrees){
+				this.x = x;
+				this.y = y;
+				x2 = x;
+				y2 = y;
 				EdgeShape lineShape = new EdgeShape();
 				BodyDef lineBodyDef = new BodyDef();
 				lineBodyDef.type = BodyType.KinematicBody;
 				lineBodyDef.fixedRotation = false;
 				lineBodyDef.position.set(x, y);
 				piece = world.createBody(lineBodyDef);
-				//piece.setLinearVelocity(0, 5);
 				FixtureDef lineFixtureDef = new FixtureDef();
-				if(orientation) lineShape.set(0, 0, 100, 0);
-				else lineShape.set(0, 0, 0, 100);
-				/*if(orientation == 1) lineShape.set(0, 0, 100, 0);
-				else if(orientation == 2 ){
-					lineShape.set(100, 0, 0, 0);
-					piece.setTransform(piece.getPosition(), piece.getAngle() + (MathUtils.degreesToRadians * 180));
-				}*/
-				//else if(orientation == 3 ) lineShape.set(0, 0, 0, 100);
-				//else if(orientation == 4 ) lineShape.set(0, 100, 0, 0);
+				lineShape.set(0, 0, 100, 0);
+				if(degrees == 0) x2+=100;
+				else if(degrees == 90){
+					modifyDegrees(90, false);
+					y2+=100;
+				}
+				else if(degrees == 180){
+					modifyDegrees(180, false);
+					x2-=100;
+				}
+				else if(degrees == 270){
+					modifyDegrees(270, false);
+					y2-=100;
+				}
 				//boxFixtureDef.restitution = 0.75f;
 				//boxFixtureDef.density = 2.0f;
 				lineFixtureDef.shape = lineShape;
 				piece.createFixture(lineFixtureDef);
 				lineShape.dispose();
+				//print("x1: " + x + ", y1: " + y + ", x2: " + x2 + ", y2: " + y2);
+			}
+
+			public void modifyDegrees(int mod, boolean rotate){
+				degrees+=mod;
+				if(degrees < 0) degrees+=360;
+				else if(degrees >= 360) degrees%=360;
+				float desiredAngle = piece.getAngle() + (MathUtils.degreesToRadians * mod);
+				if(rotate){
+					if(mod > 0){
+						piece.setAngularVelocity(1);
+						scheduleTask(desiredAngle, true);
+					}
+					else if(mod < 0){
+						piece.setAngularVelocity(-1);
+						scheduleTask(desiredAngle, false);
+					}
+				}
+				else piece.setTransform(piece.getPosition(), desiredAngle);
 			}
 
 			public void rotateLeft(){
-				float desiredAngle = piece.getAngle() + (MathUtils.degreesToRadians * 90);
-				piece.setAngularVelocity(1);
-				scheduleTask(desiredAngle, true);
+				if(!isMoving) modifyDegrees(90, true);
 			}
 
 			public void rotateRight(){
-				float desiredAngle = piece.getAngle() - (MathUtils.degreesToRadians * 90);
-				piece.setAngularVelocity(-1);
-				scheduleTask(desiredAngle, false);
+				if(!isMoving) modifyDegrees(-90, true);
 			}
 
 			private void scheduleTask(float desiredAngle, boolean direction){
+				isMoving = true;
 				timer.schedule(new AngleTask(desiredAngle, direction), 5);
 			}
 
@@ -200,15 +211,33 @@ public class AmazementMain extends ApplicationAdapter implements InputProcessor{
 					this.direction = direction;
 				}
 
+				/*private float getCorrectAngle(){
+					//float angle = piece.getAngle() + (MathUtils.degreesToRadians * degrees);
+					//print("Angle in degrees: " + Math.ceil((MathUtils.radiansToDegrees * angle)%360));
+					//return MathUtils.degreesToRadians*(Math.ceil((MathUtils.radiansToDegrees * rad)%360));
+					float angle = piece.getAngle();
+					//print("Raw angle: " + angle  + ", " + MathUtils.radiansToDegrees*angle);
+					return angle;
+				}*/
+
 				@Override
 				public void run() {
 					float angle = piece.getAngle();
-					//print(angle + ", " + desiredAngle);
+					x2 = (int)(x + 100 * Math.cos(angle));
+					y2 = (int)(y + 100 * Math.sin(angle));
 					if((angle <= desiredAngle&&direction)||(angle >= desiredAngle&&!direction)) scheduleTask(desiredAngle, direction);
 					else{
 						piece.setAngularVelocity(0);
-						float x = piece.getPosition().x, y = piece.getPosition().y;
 						piece.setTransform(x, y, desiredAngle);
+						//double rad = MathUtils.degreesToRadians*degrees;
+						if(degrees == 180||degrees == 0){
+							y2 = (int)y;
+							if(degrees == 0) x2++;
+						}
+						else x2 = (int)x;
+						if(degrees == 90) y2++;
+						//print("x: " + pos.x + ", y: " + pos.y + ", x2: " + x2 + ", y2: " + y2 + ", degrees: " + degrees);
+						isMoving = false;
 					}
 				}
 			}
@@ -225,13 +254,13 @@ public class AmazementMain extends ApplicationAdapter implements InputProcessor{
 	TiledMapRenderer tiledMapRenderer;
 	SpriteBatch sb;
 	Texture texture;
-	Sprite sprite;
+	Sprite playerSprite;
 
 	boolean leftPressed = false, rightPressed = false, upPressed = false, downPressed = false, gravity = false, drawCollision = false, resetPosition = false;
 
 	World world;
 	Box2DDebugRenderer debugRenderer;
-	Body body, wallBody, edgeBody2, lineBody, objectiveBody;
+	Body playerBody, wallBody, edgeBody2, lineBody, objectiveBody;
 	EdgeBody edgeBody;
 	Array<Body> bodies = new Array<Body>();
 	Maze maze;
@@ -239,40 +268,6 @@ public class AmazementMain extends ApplicationAdapter implements InputProcessor{
 	ParticleEffect collisionEffect;
 
 	Timer timer;
-	
-	private void createObjective(){
-		/*PolygonShape boxShape = new PolygonShape();
-		boxShape.setAsBox(20, 20);
-		BodyDef objectiveBodyDef = new BodyDef();
-		objectiveBodyDef.position.set(500, 500);
-		//boxBodyDef.angle = MathUtils.PI / 32;
-		objectiveBodyDef.type = BodyType.DynamicBody;
-		objectiveBodyDef.fixedRotation = false;
-		objectiveBody = world.createBody(objectiveBodyDef);
-		FixtureDef boxFixtureDef = new FixtureDef();
-		boxFixtureDef.shape = boxShape;
-		//boxFixtureDef.restitution = 0.75f;
-		//boxFixtureDef.density = 2.0f;
-		objectiveBody.createFixture(boxFixtureDef);
-		boxShape.dispose();*/
-	}
-
-	private void createBox() {
-		PolygonShape boxShape = new PolygonShape();
-		boxShape.setAsBox(20, 20);
-		BodyDef boxBodyDef = new BodyDef();
-		boxBodyDef.position.set(500, 500);
-		boxBodyDef.angle = MathUtils.PI / 32;
-		boxBodyDef.type = BodyType.DynamicBody;
-		boxBodyDef.fixedRotation = false;
-		Body boxBody = world.createBody(boxBodyDef);
-		FixtureDef boxFixtureDef = new FixtureDef();
-		boxFixtureDef.shape = boxShape;
-		boxFixtureDef.restitution = 0.75f;
-		boxFixtureDef.density = 2.0f;
-		boxBody.createFixture(boxFixtureDef);
-		boxShape.dispose();
-	}
 
 	private void createPlayer(){
 		/*
@@ -292,13 +287,7 @@ public class AmazementMain extends ApplicationAdapter implements InputProcessor{
 		boxShape.dispose();
 		 */
 		texture = new Texture(Gdx.files.internal("pik.png"));
-		sprite = new Sprite(texture);
-
-		//sprite.setCenter(100, 5);
-		//print(sprite.getBoundingRectangle().toString() + ", ");
-		//sprite.setBounds(-32, -32, 64, 64);
-		//print(sprite.getBoundingRectangle().toString() + ", ");
-		//sprite.setR
+		playerSprite = new Sprite(texture);
 
 		PolygonShape boxShape = new PolygonShape();
 		boxShape.setAsBox(20, 20);
@@ -307,12 +296,12 @@ public class AmazementMain extends ApplicationAdapter implements InputProcessor{
 		//boxBodyDef.angle = MathUtils.PI / 32;
 		bodyDef.type = BodyType.DynamicBody;
 		//boxBodyDef.fixedRotation = false;
-		body = world.createBody(bodyDef);
+		playerBody = world.createBody(bodyDef);
 		FixtureDef boxFixtureDef = new FixtureDef();
 		boxFixtureDef.shape = boxShape;
 		boxFixtureDef.restitution = 0.75f;
 		boxFixtureDef.density = 0f;
-		body.createFixture(boxFixtureDef);
+		playerBody.createFixture(boxFixtureDef);
 		boxShape.dispose();
 
 
@@ -322,38 +311,7 @@ public class AmazementMain extends ApplicationAdapter implements InputProcessor{
 		//bodyDef.bullet = true;
 		//bodyDef.position.set(100, 300);
 		//body = world.createBody(bodyDef);
-		body.setUserData(sprite);
-	}
-
-	private void createTestWall(){
-		/*EdgeShape lineShape = new EdgeShape();
-		lineShape.set(512, 300, 512, 500);
-		BodyDef lineBodyDef = new BodyDef();
-		lineBodyDef.position.set(200, 0);
-		lineBodyDef.type = BodyType.DynamicBody;
-		lineBodyDef.fixedRotation = false;
-		lineBody = world.createBody(lineBodyDef);
-		FixtureDef boxFixtureDef = new FixtureDef();
-		boxFixtureDef.shape = lineShape;
-		boxFixtureDef.restitution = 0.75f;
-		boxFixtureDef.density = 2.0f;
-		lineBody.createFixture(boxFixtureDef);
-		lineShape.dispose();*/
-		EdgeShape lineShape = new EdgeShape();
-		lineShape.set(0, 0, 0, 200);
-		BodyDef lineBodyDef = new BodyDef();
-		lineBodyDef.position.set(500, 600);
-		//lineBodyDef.angle = MathUtils.PI / 32;
-		lineBodyDef.type = BodyType.DynamicBody;
-		lineBodyDef.fixedRotation = false;
-		Body body = world.createBody(lineBodyDef);
-		FixtureDef lineFixtureDef = new FixtureDef();
-		lineFixtureDef.shape = lineShape;
-		lineFixtureDef.restitution = 0.75f;
-		lineFixtureDef.density = 2.0f;
-		body.createFixture(lineFixtureDef);
-		body.applyLinearImpulse(0, -20, body.getPosition().x, body.getPosition().y, true);
-		lineShape.dispose();
+		playerBody.setUserData(playerSprite);
 	}
 
 	@Override public void create () {
@@ -375,20 +333,20 @@ public class AmazementMain extends ApplicationAdapter implements InputProcessor{
 		world.setContactListener(new ContactListener() {
 			@Override
 			public void beginContact(Contact contact) {
-				print("CONTACT");
-				Body a=contact.getFixtureA().getBody();
-			    Body b=contact.getFixtureB().getBody();
-			    /*if(b.getPosition().x > 1024){
+				//print("CONTACT");
+				//Body a=contact.getFixtureA().getBody();
+				Body b=contact.getFixtureB().getBody();
+				/*if(b.getPosition().x > 1024){
 			    	print("BODY B: x> 1024");
 			    }
 			    if(b.getPosition().y > 1024){
 			    	print("BODY B: y> 1024");
 			    }*/
-			    if(b.getPosition().x > 1024||b.getPosition().y > 1024){
-			    	//sprite.setPosition(500, 500);
-			    	resetPosition = true;
-			    	print("Outside");
-			    }
+				if(b.getPosition().x > 1024||b.getPosition().y > 1024){
+					//sprite.setPosition(500, 500);
+					resetPosition = true;
+					print("Next level");
+				}
 				/*drawCollision = true;
 				timer.schedule(new TimerTask(){
 
@@ -401,7 +359,7 @@ public class AmazementMain extends ApplicationAdapter implements InputProcessor{
 
 			@Override
 			public void endContact(Contact contact) {
-				print("ENDCONTACT");
+				//print("ENDCONTACT");
 				//crumpit96 or trumpet96
 			}
 
@@ -422,7 +380,6 @@ public class AmazementMain extends ApplicationAdapter implements InputProcessor{
 
 		createPlayer();
 		edgeBody = new EdgeBody();
-		createObjective();
 		maze = new Maze();
 
 		ParticleEffectPool effectPool;
@@ -431,25 +388,6 @@ public class AmazementMain extends ApplicationAdapter implements InputProcessor{
 		collisionEffect = new ParticleEffect();
 		collisionEffect.load(Gdx.files.internal("collision_particle"), Gdx.files.internal(""));
 		//collisionEffect.setPosition(950, 950);
-		//createTestWall();
-		//createBox();
-
-		//body.setBullet(true);
-
-		/*CircleShape circle = new CircleShape();
-        circle.setRadius(6f);
-
-        FixtureDef fixtureDef = new FixtureDef();
-        fixtureDef.shape = circle;
-        fixtureDef.density = 0.5f; 
-        fixtureDef.friction = 0.4f;
-        fixtureDef.restitution = 0.6f;
-
-        Fixture fixture = body.createFixture(fixtureDef);*/
-
-		//FixtureDef.
-
-		//loader.attachFixture(body, "test01", fd, BOTTLE_WIDTH);
 		world.getBodies(bodies);
 	}
 
@@ -461,10 +399,10 @@ public class AmazementMain extends ApplicationAdapter implements InputProcessor{
 		tiledMapRenderer.setView(camera);
 		tiledMapRenderer.render();
 		sb.setProjectionMatrix(camera.combined);
-		if(leftPressed) body.applyLinearImpulse(-5, 0, body.getPosition().x, body.getPosition().y, true);
-		if(rightPressed) body.applyLinearImpulse(5, 0, body.getPosition().x, body.getPosition().y, true);
-		if(upPressed) body.applyLinearImpulse(0, 5, body.getPosition().x, body.getPosition().y, true);
-		if(downPressed) body.applyLinearImpulse(0, -5, body.getPosition().x, body.getPosition().y, true);
+		if(leftPressed) playerBody.applyLinearImpulse(-5, 0, playerBody.getPosition().x, playerBody.getPosition().y, true);
+		if(rightPressed) playerBody.applyLinearImpulse(5, 0, playerBody.getPosition().x, playerBody.getPosition().y, true);
+		if(upPressed) playerBody.applyLinearImpulse(0, 5, playerBody.getPosition().x, playerBody.getPosition().y, true);
+		if(downPressed) playerBody.applyLinearImpulse(0, -5, playerBody.getPosition().x, playerBody.getPosition().y, true);
 		sb.begin();
 		//sprite.draw(sb);
 		// I did not take a look at implementation but you get the idea
@@ -484,31 +422,28 @@ public class AmazementMain extends ApplicationAdapter implements InputProcessor{
 			}
 		}
 		//if(drawCollision){
-			//collisionEffect.setPosition(body.getPosition().x, body.getPosition().y);
-			//collisionEffect.draw(sb, Gdx.graphics.getDeltaTime());
+		//collisionEffect.setPosition(body.getPosition().x, body.getPosition().y);
+		//collisionEffect.draw(sb, Gdx.graphics.getDeltaTime());
 		//}
 		if(resetPosition){
 			resetPosition = false;
-			body.setTransform(100, 100, body.getAngle());
+			playerBody.setTransform(100, 100, playerBody.getAngle());
 			//print(body.getLinearVelocity() + "");
-			body.setLinearVelocity(100, 100);
+			playerBody.setLinearVelocity(100, 100);
 			//body.apLinearImpulse(new Vector2(5, 5), body.getPosition(), false);
 		}
 		sb.end();
 		ShapeRenderer shapeRenderer = new ShapeRenderer();
 		shapeRenderer.begin(ShapeType.Line);
-		shapeRenderer.setColor(Color.MAGENTA);
+		shapeRenderer.setColor(Color.BLACK);
 		for(MazePiece mp : maze.pieces){
 			Vector2 pos = mp.piece.getPosition();
-			shapeRenderer.line(pos.x-10, pos.y, pos.x+10, pos.y);
-			//shapeRenderer.rotate(pos.x, pos.y, 10, 50);
+			shapeRenderer.line(pos.x, pos.y, mp.x2, mp.y2);
 		}
 		shapeRenderer.end();
-		debugRenderer.render(world, camera.combined);
+		//debugRenderer.render(world, camera.combined);
 		world.step(1/60f, 6, 2);
 		//world.step(Gdx.graphics.getDeltaTime(), 8, 3);
-		//int numContacts = world.getContactCount();
-		//print(numContacts + "");
 	}
 
 	@Override
@@ -530,7 +465,6 @@ public class AmazementMain extends ApplicationAdapter implements InputProcessor{
 
 	@Override
 	public boolean keyTyped(char character) {
-		// TODO Auto-generated method stub
 		return false;
 	}
 
@@ -539,14 +473,12 @@ public class AmazementMain extends ApplicationAdapter implements InputProcessor{
 		if(keycode == Input.Keys.RIGHT) rightPressed = false;
 		if(keycode == Input.Keys.UP) upPressed = false;
 		if(keycode == Input.Keys.DOWN) downPressed = false;
-		//print(camera.direction.toString());
 		if(keycode == Input.Keys.NUM_1)
 			tiledMap.getLayers().get(0).setVisible(!tiledMap.getLayers().get(0).isVisible());
 		if(keycode == Input.Keys.NUM_2)
 			tiledMap.getLayers().get(1).setVisible(!tiledMap.getLayers().get(1).isVisible());
 		if(keycode == Input.Keys.B){
-			body.setLinearVelocity(0, 0);
-			//lineBody.setLinearVelocity(0, 0);
+			playerBody.setLinearVelocity(0, 0);
 		}
 		if(keycode == Input.Keys.G)
 			if(gravity){
@@ -565,13 +497,12 @@ public class AmazementMain extends ApplicationAdapter implements InputProcessor{
 	}
 
 	public boolean touchDown(int screenX, int screenY, int pointer, int button) {
-		//print("touch");
 		Vector3 clickCoordinates = new Vector3(screenX,screenY,0);
 		Vector3 position = camera.unproject(clickCoordinates);
-		sprite.setPosition(position.x, position.y);
+		playerSprite.setPosition(position.x, position.y);
 		//body.getPosition().set(position.x, position.y);
 		//((Sprite)body.getUserData()).setPosition(position.x, position.y);
-		body.setTransform(position.x, position.y, body.getAngle());
+		playerBody.setTransform(position.x, position.y, playerBody.getAngle());
 		return true;
 	}
 
