@@ -22,7 +22,6 @@ import com.badlogic.gdx.maps.tiled.TiledMap;
 import com.badlogic.gdx.maps.tiled.TiledMapRenderer;
 import com.badlogic.gdx.maps.tiled.TmxMapLoader;
 import com.badlogic.gdx.maps.tiled.renderers.OrthogonalTiledMapRenderer;
-import com.badlogic.gdx.math.Affine2;
 import com.badlogic.gdx.math.MathUtils;
 import com.badlogic.gdx.math.Vector2;
 import com.badlogic.gdx.math.Vector3;
@@ -31,7 +30,6 @@ import com.badlogic.gdx.physics.box2d.BodyDef;
 import com.badlogic.gdx.physics.box2d.BodyDef.BodyType;
 import com.badlogic.gdx.physics.box2d.Box2D;
 import com.badlogic.gdx.physics.box2d.Box2DDebugRenderer;
-import com.badlogic.gdx.physics.box2d.CircleShape;
 import com.badlogic.gdx.physics.box2d.Contact;
 import com.badlogic.gdx.physics.box2d.ContactImpulse;
 import com.badlogic.gdx.physics.box2d.ContactListener;
@@ -45,8 +43,6 @@ import com.gmail.jackbcousineau.AmazementMain.Maze.MazePiece;
 
 
 public class AmazementMain extends ApplicationAdapter implements InputProcessor{
-
-	int height, width, playerBodyScale = 23, playerSpriteScale = 48, playerOffset = 24, textX = 400, textY = 550;
 
 	@Override
 	public void dispose (){
@@ -72,6 +68,7 @@ public class AmazementMain extends ApplicationAdapter implements InputProcessor{
 		}
 
 		private Body createBody(int i){
+			int height = Gdx.graphics.getHeight(), width = Gdx.graphics.getWidth();
 			EdgeShape lineShape = new EdgeShape();
 			BodyDef lineBodyDef = new BodyDef();
 			lineBodyDef.type = BodyType.KinematicBody;
@@ -101,24 +98,27 @@ public class AmazementMain extends ApplicationAdapter implements InputProcessor{
 
 		class MazeLevel {
 
-			Array<Integer> rowDelay = new Array<Integer>(), timerIDs = new Array<Integer>();
-			int level, maxLevel = 5, speed = 1, pieceLength = 100, offset, gridSize;
+			Array<Integer> rowDelay = new Array<Integer>();
+			int level, speed = 1, pieceLength = 100, offset = 12, gridSize = 10;
 			Color color;
 
 			public MazeLevel(int level, Color color){
 				this.level = level;
 				this.color = color;
-				if(width == 512) pieceLength/=2;
-				setParams();
+				print("Playing level " + level + ", grid size: 10x10");
+				rowDelay.add(10);
+				setRowDelay();
 			}
 
 			public void nextLevel(){
 				playerBody.setLinearVelocity(0, 0);
 				playerBody.setTransform(50, 50, playerBody.getAngle());
 				level++;
-				//speed++;
+				speed++;
 				mazeLevel.shrinkWall(10);
-				setParams();
+				gridSize = (Gdx.graphics.getWidth()-(Gdx.graphics.getWidth()%pieceLength))/pieceLength;
+				rowDelay.set(0, gridSize);
+				print("Playing level " + level + ", grid size: " + gridSize + "x" + gridSize);
 				if(color == Color.BLACK) color = Color.WHITE;
 				else color = Color.BLACK;
 				resetAll();
@@ -128,30 +128,20 @@ public class AmazementMain extends ApplicationAdapter implements InputProcessor{
 				}
 			}
 
-			private void setParams(){
-				offset = width%pieceLength/2;
-				gridSize = (width-(width%pieceLength))/pieceLength;
-				if(rowDelay.size == 0) rowDelay.add(gridSize);
-				else rowDelay.set(0, gridSize);
-				print("Playing level " + level + ", grid size: " + gridSize + "x" + gridSize + ", offset: " + offset);
-				setRowDelay();
-			}
-
 			public void shrinkWall(int lengthToSubtract){
 				pieceLength-=lengthToSubtract;
-				offset = width%pieceLength/2;
+				offset = Gdx.graphics.getWidth()%pieceLength/2;
 				print("New length: " + pieceLength + ", offset: " + offset);
 			}
-
+			
 			public void setRowDelay(){
 				for(int i = 1; i <= rowDelay.get(0); i++){
-					Random rand = new Random();
-					int randomNum = rand.nextInt((1000 - 1) + 1) + 1;
-					if(rowDelay.size > i) rowDelay.set(i, randomNum);
-					else rowDelay.add(randomNum);
-					//print("Setting delay for row: " + i + ", delay is: " + rowDelay.get(i));
+				    Random rand = new Random();
+				    int randomNum = rand.nextInt((1000 - 1) + 1) + 1;
+				    if(rowDelay.size > i) rowDelay.set(i, randomNum);
+				    else rowDelay.add(randomNum);
+					print("Setting delay for row: " + i + ", delay is: " + rowDelay.get(i));
 				}
-				print("Set row delays for " + rowDelay.get(0) + " rows");
 			}
 		}
 
@@ -184,9 +174,6 @@ public class AmazementMain extends ApplicationAdapter implements InputProcessor{
 				world.destroyBody(p.piece);
 			}
 			pieces.clear();
-			timer.cancel();
-			timer.purge();
-			timer = new Timer();
 			setPieces(mazeLevel.level);
 		}
 
@@ -198,26 +185,11 @@ public class AmazementMain extends ApplicationAdapter implements InputProcessor{
 			switch(level){
 			case 1:
 				//addMazePiece(0, 0, 0);
-				int s = mazeLevel.gridSize;
-				for(int r = 0; r <= s; r++){
-					for(int c = 0; c <= s; c+=s){
-						//if(!(r == s&&c == s))
+				for(int r = 0; r <= mazeLevel.gridSize; r++){
+					for(int c = 0; c <= mazeLevel.gridSize; c+=10){
 						addMazePiece(r, c, 0);
 					}
 				}
-				for(int r = 0; r <= s; r+=s){
-					for(int c = 0; c <= s; c++){
-						//if(c != 10&&r != 10)
-						addMazePiece(r, c, 90);
-					}
-				}
-				addMazePiece(5, 5, 90);
-				/*for(int l = 0; l < s; l++){
-					addMazePiece(l, 10, 0);
-					addMazePiece(0, l, 90);
-					addMazePiece(l+1, 0, 180);
-					addMazePiece(10, l+1, 270);
-				}*/
 				//addMazePie
 				//addMazePiece(2, 5, 0);
 				/*addMazePiece(3, 5, 90);
@@ -261,7 +233,7 @@ public class AmazementMain extends ApplicationAdapter implements InputProcessor{
 		}
 
 		private Vector2 snapToGrid(int x, int y){
-			return new Vector2((x*mazeLevel.pieceLength)+mazeLevel.offset, (y*mazeLevel.pieceLength)+mazeLevel.offset);
+			return new Vector2((x*mazeLevel.pieceLength)+12, (y*mazeLevel.pieceLength)+12);
 		}
 
 		private void addMazePiece(int x, int y, int degrees){
@@ -275,35 +247,18 @@ public class AmazementMain extends ApplicationAdapter implements InputProcessor{
 
 			int x, y, x2, y2, degrees = 0, row, col;
 
-			boolean isMoving = false, setPos = false, checkValid = false, valid0 = true, valid90 = true, valid180 = true, valid270 = true;
+			boolean isMoving = false, setPos = false;
 
 			float desiredAngle;
 
 			public MazePiece(int x, int y, int degrees, int row, int col){
 				int size = mazeLevel.pieceLength;
-				int gridSize = mazeLevel.gridSize;
 				this.x = x;
 				this.y = y;
 				x2 = x;
 				y2 = y;
 				this.row = row;
 				this.col = col;
-				if(row == 0||row == gridSize||col == 0||col == gridSize){
-					if(row == 0){
-						valid180 = false;
-					}
-					if(row == gridSize){
-						valid0 = false;
-					}
-					if(col == 0){
-						valid270 = false;
-					}
-					if(col == gridSize){
-						valid90 = false;
-					}
-					checkValid = true;
-				}
-				else print("Not marking");
 				EdgeShape lineShape = new EdgeShape();
 				BodyDef lineBodyDef = new BodyDef();
 				lineBodyDef.type = BodyType.KinematicBody;
@@ -334,20 +289,9 @@ public class AmazementMain extends ApplicationAdapter implements InputProcessor{
 			}
 
 			public void modifyDegrees(int mod, boolean rotate){
-				boolean stop = false;
-				int originalDegrees = degrees;
 				degrees+=mod;
 				if(degrees < 0) degrees+=360;
 				else if(degrees >= 360) degrees%=360;
-				if(checkValid){
-					if((degrees == 0&&!valid0)||(degrees == 90&&!valid90)||(degrees == 180&&!valid180)||(degrees == 270&&!valid270)){
-						degrees = originalDegrees;
-						isMoving = false;
-						stop = true;
-						return;
-					}
-				}
-				if(stop) print("This should not run");
 				float desiredAngle = piece.getAngle() + (MathUtils.degreesToRadians * mod);
 				if(rotate){
 					if(mod > 0){
@@ -374,29 +318,43 @@ public class AmazementMain extends ApplicationAdapter implements InputProcessor{
 				isMoving = true;
 				timer.schedule(new AngleTask(desiredAngle, direction), 5);
 			}
-
+			
 			public void scheduleMovementTask(){
-				//print("Scheduling wall movement task");
-				//timer.scheduleAtFixedRate(new MovementTimer(), mazeLevel.rowDelay.get(col), 3000);
-				timer.scheduleAtFixedRate(new TimerTask(){
+				/*timer.scheduleAtFixedRate(new TimerTask(){
+
+					@Override
 					public void run() {
 						if(Math.random() < 0.5){
 							rotateLeft();
 						}
 						else rotateRight();
-					}
-				}, mazeLevel.rowDelay.get(col), 3000);
-				//timer.schedule(new MovementTimer(), mazeLevel.rowDelay.get(col));
+					}}, mazeLevel.rowDelay.get(col), 1000);*/
 			}
-
+			
 			/*class MovementTimer extends TimerTask{
+
+				private boolean direction;
+
+				public MovementTimer(float newDesiredAngle, boolean direction){
+					desiredAngle = newDesiredAngle;
+					this.direction = direction;
+				}
 
 				@Override
 				public void run() {
-					if(Math.random() < 0.5){
-						rotateLeft();
+					else{
+						piece.setAngularVelocity(0);
+						//piece.setTransform(x, y, desiredAngle);
+						setPos = true;
+						if(degrees == 180||degrees == 0){
+							y2 = (int)y;
+							if(degrees == 0) x2++;
+						}
+						else x2 = (int)x;
+						if(degrees == 90) y2++;
+						//print("x: " + pos.x + ", y: " + pos.y + ", x2: " + x2 + ", y2: " + y2 + ", degrees: " + degrees);
+						isMoving = false;
 					}
-					else rotateRight();
 				}
 			}*/
 
@@ -473,82 +431,36 @@ public class AmazementMain extends ApplicationAdapter implements InputProcessor{
 	}
 
 	private void createPlayer(){
-		texture = new Texture(Gdx.files.internal("player.png"));
-		//if(width == 512) texture.
+		texture = new Texture(Gdx.files.internal("pik.png"));
 		playerSprite = new Sprite(texture);
 
-		//PolygonShape boxShape = new PolygonShape();
-		CircleShape circleShape = new CircleShape();
-		//boxShape.setAsBox(20, 20);
-		circleShape.setRadius(playerBodyScale);
+		PolygonShape boxShape = new PolygonShape();
+		boxShape.setAsBox(20, 20);
 		BodyDef bodyDef = new BodyDef();
 		bodyDef.position.set(50, 50);
 		bodyDef.type = BodyType.DynamicBody;
-		bodyDef.fixedRotation = false;
+		//boxBodyDef.fixedRotation = false;
 		playerBody = world.createBody(bodyDef);
 		FixtureDef boxFixtureDef = new FixtureDef();
-		//boxFixtureDef.shape = boxShape;
-		boxFixtureDef.shape = circleShape;
+		boxFixtureDef.shape = boxShape;
 		boxFixtureDef.restitution = 0.75f;
 		boxFixtureDef.density = 0f;
 		playerBody.createFixture(boxFixtureDef);
-		//boxShape.dispose();
-		circleShape.dispose();
+		boxShape.dispose();
 		playerBody.setUserData(playerSprite);
-		//playerBody.setAngularVelocity(1);
-	}
-
-	private void spinPlayer(boolean dir){
-		float vel = playerBody.getAngularVelocity();
-		double velMod = 0;
-		if(dir){
-			if(vel > 0) velMod++;
-			else{
-				//print(vel + "");
-				if(vel > -2) velMod+=1.5;//playerBody.setAngularVelocity(vel*-1);
-				else velMod=+3;
-			}
-		}
-		else{
-			if(vel > 0){
-				if(vel < 2) velMod-=1.5;//playerBody.setAngularVelocity(vel*-1);
-				else velMod=-3;
-			}
-			else velMod--;
-		}
-		if(Math.abs(vel+velMod) <= 7) playerBody.setAngularVelocity(vel+(float)velMod);
-		//print(playerBody.getAngularVelocity() + "");
-		//playerBody.setAngularVelocity(playerBody.getAngularVelocity()*-1);
 	}
 
 	@Override public void create () {
 		//
 		Box2D.init();
-		height = Gdx.graphics.getHeight();
-		width = Gdx.graphics.getWidth();
-
-		font = new BitmapFont();
-
-		if(width == 512){
-			playerBodyScale = 12;
-			playerSpriteScale = 24;
-			playerOffset = playerSpriteScale/2;
-			textX = 190;
-			textY = 290;
-			font.setScale(3);
-			tiledMap = new TmxMapLoader().load("map512.tmx");
-		}
-		else{
-			font.setScale(5);
-			tiledMap = new TmxMapLoader().load("map1024.tmx");
-		}
+		final float w = Gdx.graphics.getWidth();
+		final float h = Gdx.graphics.getHeight();
 
 		camera = new OrthographicCamera();
-		camera.setToOrtho(false,width,height);
+		camera.setToOrtho(false,w,h);
 		camera.update();
-		//if(Gdx.graphics.getWidth() == 512) tiledMapRenderer = new OrthogonalTiledMapRenderer(tiledMap, 1/2);
+		tiledMap = new TmxMapLoader().load("map.tmx");
 		tiledMapRenderer = new OrthogonalTiledMapRenderer(tiledMap);
-		//tiledMapRenderer.setView(camera.combined, width, height, width, height);
 		Gdx.input.setInputProcessor(this);
 		world = new World(new Vector2(0, 0), false); 
 		debugRenderer = new Box2DDebugRenderer();
@@ -559,44 +471,11 @@ public class AmazementMain extends ApplicationAdapter implements InputProcessor{
 		world.setContactListener(new ContactListener() {
 			@Override
 			public void beginContact(Contact contact) {
-				//print(playerBody.getAngle() + "");
-				//playerBody.applyAngularImpulse(50, false);
-				//playerBody.applyTorque(50, true);
-				//playerBody.setAngularVelocity(1);
-				//playerBody.
 				collisionSound.play();
 				//print("CONTACT");
-				Body a=contact.getFixtureA().getBody();
+				//Body a=contact.getFixtureA().getBody();
 				Body b=contact.getFixtureB().getBody();
-				//for (int i = 0; i < contact.getWorldManifold().getNumberOfContactPoints(); i++) {
-				float x = contact.getWorldManifold().getPoints()[0].x;
-				float y = contact.getWorldManifold().getPoints()[0].y;
-				//print("Post: " + playerBody.getLinearVelocity());
-				Vector2 vel = playerBody.getLinearVelocity();
-				if(vel.x != 0&&vel.y != 0){
-					int deg = (int) (MathUtils.radiansToDegrees*a.getAngle());
-					if(vel.x > 0){
-						if(vel.y > 0){
-							if(deg == 0) spinPlayer(true);
-							else spinPlayer(false);
-						}
-						else{
-							if(deg == 90) spinPlayer(true);
-							else spinPlayer(false);
-						}
-					}
-					else{
-						if(vel.y > 0){
-							if(deg == 0) spinPlayer(false);
-							else spinPlayer(true);
-						}
-						else{
-							if(deg == 90) spinPlayer(false);
-							else spinPlayer(true);
-						}
-					}
-				}
-				if(b.getPosition().x > width||b.getPosition().y > height){
+				if(b.getPosition().x > w||b.getPosition().y > h){
 					//sprite.setPosition(500, 500);
 					resetPosition = true;
 				}
@@ -617,9 +496,6 @@ public class AmazementMain extends ApplicationAdapter implements InputProcessor{
 
 			@Override
 			public void preSolve(Contact contact, Manifold oldManifold) {
-				//Vector2 vec = playerBody.getLinearVelocityFromWorldPoint(new Vector2(0, 0));
-				//print("Pre: " + playerBody.getLinearVelocity());
-				//print(vec + "");
 			}
 
 			@Override
@@ -639,10 +515,12 @@ public class AmazementMain extends ApplicationAdapter implements InputProcessor{
 		//collisionEffect = new ParticleEffect();
 		//collisionEffect.load(Gdx.files.internal("collision_particle"), Gdx.files.internal(""));
 		//collisionEffect.setPosition(950, 950);
+		font = new BitmapFont();
+		font.setScale(5);
 		world.getBodies(bodies);
 		displayLevel();
 		for(MazePiece p : maze.pieces){
-			//p.scheduleMovementTask();
+			p.scheduleMovementTask();
 		}
 	}
 
@@ -650,38 +528,21 @@ public class AmazementMain extends ApplicationAdapter implements InputProcessor{
 		Gdx.gl.glClearColor(1, 0, 0, 1);
 		Gdx.gl.glBlendFunc(GL20.GL_SRC_ALPHA, GL20.GL_ONE_MINUS_SRC_ALPHA);
 		Gdx.gl.glClear(GL20.GL_COLOR_BUFFER_BIT);
-		//camera.
 		camera.update();
 		tiledMapRenderer.setView(camera);
-		//tiledMapRenderer.setView(camera.combined, 500, 1, width, height);
 		tiledMapRenderer.render();
 		sb.setProjectionMatrix(camera.combined);
 		if(leftPressed) playerBody.applyLinearImpulse(-5, 0, playerBody.getPosition().x, playerBody.getPosition().y, true);
 		if(rightPressed) playerBody.applyLinearImpulse(5, 0, playerBody.getPosition().x, playerBody.getPosition().y, true);
 		if(upPressed) playerBody.applyLinearImpulse(0, 5, playerBody.getPosition().x, playerBody.getPosition().y, true);
 		if(downPressed) playerBody.applyLinearImpulse(0, -5, playerBody.getPosition().x, playerBody.getPosition().y, true);
-		Vector2 pPos = playerBody.getPosition();
-		Sprite e = (Sprite)playerBody.getUserData();
-		ShapeRenderer shapeRenderer = new ShapeRenderer();
-		shapeRenderer.begin(ShapeType.Line);
-		shapeRenderer.setColor(maze.mazeLevel.color);
-		for(MazePiece mp : maze.pieces){
-			//Vector2 pos = mp.piece.getPosition();
-			//if(mp.x2 >= 0&&mp.x2 <= width&&mp.y2 >= 0&&mp.y2 <= height)
-			shapeRenderer.line(mp.x, mp.y, mp.x2, mp.y2);
-		}
-		shapeRenderer.end();
-		shapeRenderer.setColor(Color.WHITE);
-		shapeRenderer.begin(ShapeType.Filled);
-		shapeRenderer.circle(pPos.x, pPos.y, playerBodyScale);
-		shapeRenderer.end();
 		sb.begin();
-		if(displayLevel) font.draw(sb, "Level " + maze.mazeLevel.level, textX, textY);
+		if(displayLevel) font.draw(sb, "Level " + maze.mazeLevel.level, 400, 550);
 		//sprite.draw(sb);
 		// I did not take a look at implementation but you get the idea
 		//sprite.setPosition(x, y); = body.localVector.x;
 		//sprite.y = body.localVector.y;
-		/*for (Body b : bodies) {
+		for (Body b : bodies) {
 			// Get the body's user data - in this example, our user 
 			// data is an instance of the Entity class
 			Sprite e = (Sprite) b.getUserData();
@@ -691,15 +552,13 @@ public class AmazementMain extends ApplicationAdapter implements InputProcessor{
 				e.setPosition(b.getPosition().x-30, b.getPosition().y-24);
 				// We need to convert our angle from radians to degrees
 				e.setRotation(MathUtils.radiansToDegrees * b.getAngle());
-				//e.draw(sb);
+				e.draw(sb);
 			}
-		}*/
+		}
 		//if(drawCollision){
 		//collisionEffect.setPosition(body.getPosition().x, body.getPosition().y);
 		//collisionEffect.draw(sb, Gdx.graphics.getDeltaTime());
 		//}
-		//e.setPosition(pPos.x-24, pPos.y-24);
-		//e.draw(sb);
 		for(MazePiece p : maze.pieces){
 			if(p.setPos){
 				p.setPos = false;
@@ -710,20 +569,15 @@ public class AmazementMain extends ApplicationAdapter implements InputProcessor{
 			resetPosition = false;
 			maze.mazeLevel.nextLevel();
 		}
-		//e.setRotation(MathUtils.radiansToDegrees*playerBody.getAngle());
-		//sb.dr
-		//Affine2 a = new Affine2();
-		//a.(new Vector2(pPos.x-playerOffset, pPos.y-playerOffset));
-		//sb.draw(e, playerSpriteScale, playerSpriteScale, a);
-		//sb.draw(texture, playerSpriteScale, playerSpriteScale, a);
-		e.setBounds(pPos.x-playerOffset, pPos.y-playerOffset, playerSpriteScale, playerSpriteScale);
-		//e.setPosition(pPos.x-playerOffset, pPos.y-playerOffset);
-		//e.setScale(playerSpriteScale);
-		//e.setSize(playerSpriteScale, playerSpriteScale);
-		e.setRotation(MathUtils.radiansToDegrees*playerBody.getAngle());
-		e.draw(sb);
-		//sb.draw(e, pPos.x-playerOffset, pPos.y-playerOffset, playerSpriteScale, playerSpriteScale);
 		sb.end();
+		ShapeRenderer shapeRenderer = new ShapeRenderer();
+		shapeRenderer.begin(ShapeType.Line);
+		shapeRenderer.setColor(maze.mazeLevel.color);
+		for(MazePiece mp : maze.pieces){
+			Vector2 pos = mp.piece.getPosition();
+			shapeRenderer.line(pos.x, pos.y, mp.x2, mp.y2);
+		}
+		shapeRenderer.end();
 		//debugRenderer.render(world, camera.combined);
 		world.step(1/60f, 6, 2);
 		//world.step(Gdx.graphics.getDeltaTime(), 8, 3);

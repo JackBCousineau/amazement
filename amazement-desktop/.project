@@ -21,9 +21,19 @@
 			<locationURI>PARENT-1-PROJECT_LOC/core/assets</locationURI>
 		</link>
 		<link>
-			<name>assets/map.tmx</name>
+			<name>assets/images.jpg</name>
 			<type>1</type>
-			<locationURI>PARENT-3-PROJECT_LOC/Desktop/Amazement/map.tmx</locationURI>
+			<locationURI>PARENT-3-PROJECT_LOC/Desktop/Amazement/images.jpg</locationURI>
+		</link>
+		<link>
+			<name>assets/map1024.tmx</name>
+			<type>1</type>
+			<locationURI>PARENT-3-PROJECT_LOC/Desktop/Amazement/map1024.tmx</locationURI>
+		</link>
+		<link>
+			<name>assets/map512.tmx</name>
+			<type>1</type>
+			<locationURI>PARENT-3-PROJECT_LOC/Desktop/Amazement/map512.tmx</locationURI>
 		</link>
 		<link>
 			<name>assets/pew.wav</name>
@@ -34,6 +44,11 @@
 			<name>assets/pik.png</name>
 			<type>1</type>
 			<locationURI>PARENT-3-PROJECT_LOC/Desktop/Amazement/pik.png</locationURI>
+		</link>
+		<link>
+			<name>assets/player.png</name>
+			<type>1</type>
+			<locationURI>PARENT-3-PROJECT_LOC/Desktop/Amazement/player.png</locationURI>
 		</link>
 		<link>
 			<name>assets/tileset.png</name>
