@@ -5,7 +5,23 @@ import java.awt.Canvas;
 import java.awt.Dimension;
 import java.awt.event.ActionEvent;
 import java.awt.event.ActionListener;
+import java.awt.event.FocusEvent;
+import java.awt.event.FocusListener;
+import java.awt.event.KeyEvent;
+import java.awt.event.KeyListener;
+import java.awt.event.WindowEvent;
+import java.awt.event.WindowFocusListener;
+import java.io.BufferedInputStream;
+import java.io.FileInputStream;
+import java.io.IOException;
 
+import javax.sound.sampled.AudioFormat;
+import javax.sound.sampled.AudioInputStream;
+import javax.sound.sampled.AudioSystem;
+import javax.sound.sampled.Clip;
+import javax.sound.sampled.LineUnavailableException;
+import javax.sound.sampled.UnsupportedAudioFileException;
+import javax.swing.AbstractAction;
 import javax.swing.JButton;
 import javax.swing.JCheckBox;
 import javax.swing.JComboBox;
@@ -13,19 +29,51 @@ import javax.swing.JFileChooser;
 import javax.swing.JFrame;
 import javax.swing.JLabel;
 import javax.swing.JPanel;
+import javax.swing.KeyStroke;
 import javax.swing.SpringLayout;
+import javax.swing.SwingUtilities;
 import javax.swing.filechooser.FileNameExtensionFilter;
 
+import com.apple.eawt.AppEvent.QuitEvent;
+import com.apple.eawt.Application;
+import com.apple.eawt.QuitHandler;
+import com.apple.eawt.QuitResponse;
 import com.badlogic.gdx.ApplicationListener;
+import com.badlogic.gdx.Gdx;
+import com.badlogic.gdx.LifecycleListener;
+import com.badlogic.gdx.Graphics.DisplayMode;
 import com.badlogic.gdx.backends.lwjgl.LwjglApplication;
 import com.badlogic.gdx.backends.lwjgl.LwjglApplicationConfiguration;
+import com.badlogic.gdx.backends.lwjgl.LwjglGraphics;
+import com.badlogic.gdx.backends.lwjgl.LwjglGraphics.SetDisplayModeCallback;
 import com.gmail.jackbcousineau.AmazementMain;
+import com.gmail.jackbcousineau.AudioHandler;
 
 public class DesktopLauncher{
+	
+	private AudioThread audioThread;
+	
+	private class AudioThread extends Thread{
+		
+		AudioHandler audioHandler;
+		String path;
+		
+		public AudioThread(String path){
+			this.path = path;
+		}
+		
+		public void run(){
+			System.out.println("Running audio thread");
+			try {
+				audioHandler = new AudioHandler(path);
+			} catch (Exception e){
+			}
+		}
+	}
 
-	/*private void p(String str){
+	private void p(String str){
 		System.out.println(str);
-	}*/
+	}
 	LwjglApplicationConfiguration config;
 
 	MainWindowFrame mainWindowFrame;
@@ -33,18 +81,48 @@ public class DesktopLauncher{
 	static DesktopLauncher desktopLauncher;
 
 	LwjglApplication app;
+	
+	
+	int width = 1024, height = 1024;
+
+	//public boolean gameRunning = false;
+
+	//QuitHandler quitHandler;
+
+	//DisplayMode dm;
+
+	//LwjglFrame gameFrame;
+
+	//LwjglGraphics graphics;
 
 	public static void main (String[] arg) {
 		desktopLauncher = new DesktopLauncher();
 
 	}
-
-	public DesktopLauncher(){
+	
+	private void createConfig(){
 		config = new LwjglApplicationConfiguration();
 		//default height 480, width 640
-		config.height = 1024;
-		config.width = 1024;
-		System.out.println(config.height + ", " + config.width);
+		config.fullscreen = false;
+		config.height = height;
+		config.width = width;
+		config.resizable = false;
+		config.forceExit = false;
+		p("Created config");
+	}
+
+	public DesktopLauncher(){
+		createConfig();
+		/*LwjglGraphics.SetDisplayModeCallback j = new LwjglGraphics.SetDisplayModeCallback() {
+			@Override
+			public LwjglApplicationConfiguration onFailure(LwjglApplicationConfiguration initialConfig) {
+				p("CONFIG FAILURE");
+				return null;
+			}
+		};
+		config.setDisplayModeCallback = j;*/
+		//dm = new DisplayMode(config.width, config.height, 0, 32);
+		//System.out.println(config.height + ", " + config.width);
 		mainWindowFrame = new MainWindowFrame();
 		//GUIThread thread = new GUIThread();
 		//thread.run();
@@ -52,10 +130,50 @@ public class DesktopLauncher{
 		//app
 	}
 
+	/*private void readDisplayMode(){
+		dm = graphics.getDesktopDisplayMode();
+		int h = dm.height;
+		int w = dm.width;
+		int b = dm.bitsPerPixel;
+		int r = dm.refreshRate;
+		p(h + ", " + w + ", " + b + ", " + r);
+	}*/
+
 	private void startGame(){
-		app = new LwjglApplication(new AmazementMain(), config);
-	    // create an LwjglFrame with your configuration and the listener
-	    /*LwjglFrame frame = new LwjglFrame(new AmazementMain(), config);
+		config.width = width;
+		config.height = height;
+		p("Starting with " + config.width + ", " + config.height);
+		if(app != null){
+		//Gdx.app.postRunnable();
+		//app.stop();
+		//p("G: " + config.width + ", " + config.height);
+		//Gdx.graphics.setDisplayMode(config.width, config.height, false);
+		//app = new LwjglApplication(new AmazementMain(height, width, false), config, graphics);
+			//p("Not null");
+		}
+		//LwjglGraphics lwjglGraphics = new LwjglGraphics(config);
+		//else{
+		app = new LwjglApplication(new AmazementMain(config.height, config.width), config);
+		//graphics = app.getGraphics();
+		//p(graphics.setDisplayMode(width, height, false) + "");
+		//}
+		//readDisplayMode();
+		//app = new LwjglApplication(new AmazementMain(height, width), config);
+		//Canvas canvas = new Canvas();
+		//app = new LwjglApplication(new AmazementMain(height, width), config, canvas);
+		//gameFrame = new LwjglFrame(new AmazementMain(height, width), config);
+		//gameFrame.setVisible(true);
+		//for(DisplayMode dm : app.getGraphics().getDisplayModes()){
+		//p(dm.toString());
+		//	}
+		//readDisplayMode();
+		//app.getGraphics().setDisplayMode(width, height, false);
+		//readDisplayMode();
+
+		//p("Density " + app.getGraphics().);
+		//System.out.println(config.height + ", " + config.width);
+		// create an LwjglFrame with your configuration and the listener
+		/*LwjglFrame frame = new LwjglFrame(new AmazementMain(), config);
 
 	    // add a component listener for when the frame gets moved
 	    frame.addComponentListener(new ComponentAdapter() {
@@ -67,6 +185,23 @@ public class DesktopLauncher{
 
 	    // set the frame visible
 	    frame.setVisible(true);*/
+		app.addLifecycleListener(new LifecycleListener(){
+
+			@Override
+			public void pause() {
+			}
+
+			@Override
+			public void resume() {
+			}
+
+			@Override
+			public void dispose() {
+				//p("CLOSED");
+				//gameRunning = false;
+				mainWindowFrame.requestFocus();
+			}});
+		//gameRunning = true;
 	}
 
 	/*class GUIThread extends Thread{
@@ -83,10 +218,14 @@ public class DesktopLauncher{
 
 		private static final long serialVersionUID = 4022199660289052400L;
 
+		//public boolean MAC_OS_X = (System.getProperty("os.name").toLowerCase().startsWith("mac os x"));
+
 		JButton startButton, chooseFile;
 		JLabel fileLabel, resolutionLabel;
 		JComboBox<String> resolutionBox;
 		JCheckBox fullscreenCheckBox;
+
+		//boolean inRestoringState = true, cmdPressed = false, qPressed = false;
 
 		public MainWindowFrame(){
 			super("Amazement");
@@ -119,12 +258,16 @@ public class DesktopLauncher{
 					@SuppressWarnings("unchecked")
 					JComboBox<String> box = (JComboBox<String>)event.getSource();
 					if(box.getSelectedItem() == "1024 x 1024"){
-						config.height = 1024;
-						config.width = 1024;
+						//config.
+						height = 1024;
+						//config.
+						width = 1024;
 					}
 					else if(box.getSelectedItem() == "512 x 512"){
-						config.height = 512;
-						config.width = 512;
+						//config.
+						height = 512;
+						//config.
+						width = 512;
 					}
 				}
 			});
@@ -160,6 +303,14 @@ public class DesktopLauncher{
 						System.out.println("You chose to open this file: " +
 								chooser.getSelectedFile().getName());
 						fileLabel.setText("File: " + chooser.getSelectedFile().getName());
+						try {
+							//audioThread = new AudioThread(chooser.getSelectedFile().getPath());
+							//audioThread.start();
+							//audioThread.run();
+							//playSound(chooser.getSelectedFile().getPath());
+							new AudioHandler(chooser.getSelectedFile().getPath());
+						} catch (Exception ex) {
+						}
 					}
 				}
 
@@ -181,8 +332,104 @@ public class DesktopLauncher{
 			layout.putConstraint(SpringLayout.NORTH, fileLabel, 0, SpringLayout.SOUTH, chooseFile);
 
 			setVisible(true);
+
+			/*if(MAC_OS_X){
+				//OSXAdapter.
+				//this.
+				quitHandler = new QuitHandler(){
+
+					@Override
+					public void handleQuitRequestWith(QuitEvent qe, QuitResponse qr) {
+						p("APPLE QUITTING");
+						qr.performQuit();
+					}
+
+				};
+				//Application.getApplication().setQuitHandler(quitHandler);
+			}
+
+			/*addFocusListener(new FocusListener(){
+
+				@Override
+				public void focusGained(FocusEvent e) {
+					p("GAINED FOCUS");
+					//Application.getApplication().setQuitHandler(quitHandler);
+				}
+
+				@Override
+				public void focusLost(FocusEvent e) {
+					p("LOST FOCUS");
+				}
+
+			});*/
+
+			addKeyListener(new KeyListener(){
+
+				@Override
+				public void keyTyped(KeyEvent e) {
+				}
+
+				@Override
+				public void keyPressed(KeyEvent e) {
+					if(e.getKeyChar() == 'q'&&e.isMetaDown()) p("Should quit");
+					if(e.getKeyChar() == 'p'){
+						p("Pause pressed");
+						//audioHandler.pause();
+					}
+				}
+
+				@Override
+				public void keyReleased(KeyEvent e) {
+				}});
+
+			/*if(!inRestoringState) addWindowFocusListener(new WindowFocusListener() {
+
+				@Override
+				public void windowGainedFocus(WindowEvent arg0) {
+					p("window gained focus");
+					if(!gameRunning) SwingUtilities.invokeLater( new Runnable() {
+						public void run() {
+							if(!inRestoringState){
+								inRestoringState = true;
+								setVisible(false);
+								setVisible(true);
+								requestFocus();
+							} else {
+								inRestoringState = false;
+							}
+						}
+					} );
+					p("refreshed");
+				}
+
+				@Override
+				public void windowLostFocus(WindowEvent arg0) {
+					p("LOST FOCUS");
+				}
+
+			});*/
+			setFocusCycleRoot(true);
 		}
 	}
+	
+	/*
+	 * 	
+	public static synchronized void playSound(final String url) {
+		  new Thread(new Runnable() {
+		  // The wrapper thread is unnecessary, unless it blocks on the
+		  // Clip finishing; see comments.
+		    public void run() {
+		      try {
+		        Clip clip = AudioSystem.getClip();
+		        clip.open(AudioSystem.getAudioInputStream(new BufferedInputStream(new FileInputStream(url))));
+		        clip.start(); 
+		      } catch (Exception e) {
+		        System.err.println(e.getMessage());
+		      }
+		    }
+		  }).start();
+		}
+	 */
 
 	public class LwjglFrame extends JFrame{
 

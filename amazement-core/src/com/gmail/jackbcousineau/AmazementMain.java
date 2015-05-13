@@ -1,13 +1,26 @@
 package com.gmail.jackbcousineau;
 
+import java.io.BufferedInputStream;
+import java.io.FileInputStream;
+import java.io.IOException;
 import java.util.Random;
 import java.util.Timer;
 import java.util.TimerTask;
 
+import javax.sound.sampled.AudioSystem;
+import javax.sound.sampled.Clip;
+import javax.sound.sampled.LineUnavailableException;
+import javax.sound.sampled.UnsupportedAudioFileException;
+
+import sun.security.krb5.Config;
+
 import com.badlogic.gdx.ApplicationAdapter;
+import com.badlogic.gdx.Game;
 import com.badlogic.gdx.Gdx;
 import com.badlogic.gdx.Input;
 import com.badlogic.gdx.InputProcessor;
+import com.badlogic.gdx.LifecycleListener;
+import com.badlogic.gdx.Screen;
 import com.badlogic.gdx.audio.Sound;
 import com.badlogic.gdx.graphics.Color;
 import com.badlogic.gdx.graphics.GL20;
@@ -42,18 +55,24 @@ import com.badlogic.gdx.physics.box2d.PolygonShape;
 import com.badlogic.gdx.physics.box2d.World;
 import com.badlogic.gdx.utils.Array;
 import com.gmail.jackbcousineau.AmazementMain.Maze.MazePiece;
+//import com.gmail.jackbcousineau.desktop.DesktopLauncher;
 
 
-public class AmazementMain extends ApplicationAdapter implements InputProcessor{
+public class AmazementMain extends Game implements InputProcessor{
+
+	//DesktopLauncher desktopLauncher;
 
 	int height, width, playerBodyScale = 23, playerSpriteScale = 48, playerOffset = 24, textX = 400, textY = 550;
 
 	@Override
 	public void dispose (){
+		//Gdx.graphics.setTitle("amazement");
 		sb.dispose();
 		texture.dispose();
 		world.dispose();
 		collisionSound.dispose();
+		print("Disposing amazement");
+		//desktopLauncher.gameRunning = false;
 	}
 
 	class EdgeBody{
@@ -108,7 +127,7 @@ public class AmazementMain extends ApplicationAdapter implements InputProcessor{
 			public MazeLevel(int level, Color color){
 				this.level = level;
 				this.color = color;
-				if(width == 512) pieceLength/=2;
+				if(lowRes) pieceLength/=2;
 				setParams();
 			}
 
@@ -151,7 +170,7 @@ public class AmazementMain extends ApplicationAdapter implements InputProcessor{
 					else rowDelay.add(randomNum);
 					//print("Setting delay for row: " + i + ", delay is: " + rowDelay.get(i));
 				}
-				print("Set row delays for " + rowDelay.get(0) + " rows");
+				//print("Set row delays for " + rowDelay.get(0) + " rows");
 			}
 		}
 
@@ -303,7 +322,6 @@ public class AmazementMain extends ApplicationAdapter implements InputProcessor{
 					}
 					checkValid = true;
 				}
-				else print("Not marking");
 				EdgeShape lineShape = new EdgeShape();
 				BodyDef lineBodyDef = new BodyDef();
 				lineBodyDef.type = BodyType.KinematicBody;
@@ -446,7 +464,7 @@ public class AmazementMain extends ApplicationAdapter implements InputProcessor{
 	Texture texture;
 	Sprite playerSprite;
 
-	boolean leftPressed = false, rightPressed = false, upPressed = false, downPressed = false, gravity = false, drawCollision = false, resetPosition = false, displayLevel = false;
+	boolean leftPressed = false, rightPressed = false, upPressed = false, downPressed = false, gravity = false, drawCollision = false, resetPosition = false, displayLevel = false, keepDisplayLevel = false, lowRes = false, paused = false;
 
 	World world;
 	Box2DDebugRenderer debugRenderer;
@@ -462,18 +480,33 @@ public class AmazementMain extends ApplicationAdapter implements InputProcessor{
 
 	BitmapFont font;
 
+	Clip clip;
+
+	public AmazementMain(int height, int width){
+		this.height = height;
+		this.width = width;
+	}
+
+	/*public AmazementMain(int height, int width, DesktopLauncher desktopLauncher){
+		this.height = height;
+		this.width = width;
+		this.desktopLauncher = desktopLauncher;
+	}*/
+
 	private void displayLevel(){
 		displayLevel = true;
 		timer.schedule(new TimerTask(){
 
 			@Override
 			public void run() {
+				if(paused) keepDisplayLevel = true;
 				displayLevel = false;
 			}}, 1500);
 	}
 
 	private void createPlayer(){
-		texture = new Texture(Gdx.files.internal("player.png"));
+		if(lowRes) texture = new Texture(Gdx.files.internal("player24.png"));
+		else texture = new Texture(Gdx.files.internal("player48.png"));
 		//if(width == 512) texture.
 		playerSprite = new Sprite(texture);
 
@@ -521,18 +554,83 @@ public class AmazementMain extends ApplicationAdapter implements InputProcessor{
 		//playerBody.setAngularVelocity(playerBody.getAngularVelocity()*-1);
 	}
 
+	public class PauseScreen implements Screen{
+
+		@Override
+		public void show() {
+		}
+
+		@Override
+		public void render(float delta) {
+		}
+
+		@Override
+		public void resize(int width, int height) {
+		}
+
+		@Override
+		public void pause() {
+		}
+
+		@Override
+		public void resume() {
+		}
+
+		@Override
+		public void hide() {
+		}
+
+		@Override
+		public void dispose() {
+		}
+
+	}
+
+	@Override public void pause(){
+		if(!paused){
+			//print("System paused game");
+			paused = true;
+			clip.stop();
+		}
+	}
+
+	@Override public void resume(){
+		//print("RESUMED FOCUS");
+	}
+
+	private void pauseGame(){
+		if(!paused){
+			//print("User paused game");
+			paused = true;
+			//if(displayLevel) keepDisplayLevel = true;
+			clip.stop();
+		}
+		else{
+			//print("User unpaused game");
+			paused = false;
+			clip.start();
+			if(keepDisplayLevel) keepDisplayLevel = false;
+		}
+	}
+
 	@Override public void create () {
+		//print("Creating amazement");
 		//
 		Box2D.init();
-		height = Gdx.graphics.getHeight();
-		width = Gdx.graphics.getWidth();
+		//if(!firstRun)
+		//if(setSize)
+		Gdx.graphics.setDisplayMode(width, height, false);
+		Gdx.graphics.setTitle("Amazement");
+		//height = Gdx.graphics.getHeight();
+		//width = Gdx.graphics.getWidth();
 
 		font = new BitmapFont();
 
 		if(width == 512){
+			lowRes = true;
 			playerBodyScale = 12;
-			playerSpriteScale = 24;
-			playerOffset = playerSpriteScale/2;
+			//playerSpriteScale = 24;
+			playerOffset = 12;
 			textX = 190;
 			textY = 290;
 			font.setScale(3);
@@ -541,6 +639,15 @@ public class AmazementMain extends ApplicationAdapter implements InputProcessor{
 		else{
 			font.setScale(5);
 			tiledMap = new TmxMapLoader().load("map1024.tmx");
+		}
+
+		try {
+			clip = AudioSystem.getClip();
+			clip.open(AudioSystem.getAudioInputStream(new BufferedInputStream(new FileInputStream("/Users/Jack/Satisfaction.wav"))));
+			clip.start(); 
+			print("Buffer size: " + clip.getBufferSize());
+		} catch (Exception e) {
+			System.err.println(e.getMessage());
 		}
 
 		camera = new OrthographicCamera();
@@ -577,21 +684,21 @@ public class AmazementMain extends ApplicationAdapter implements InputProcessor{
 					int deg = (int) (MathUtils.radiansToDegrees*a.getAngle());
 					if(vel.x > 0){
 						if(vel.y > 0){
-							if(deg == 0) spinPlayer(true);
+							if(deg == 0||deg == 180) spinPlayer(true);
 							else spinPlayer(false);
 						}
 						else{
-							if(deg == 90) spinPlayer(true);
+							if(deg == 90||deg == 270) spinPlayer(true);
 							else spinPlayer(false);
 						}
 					}
 					else{
 						if(vel.y > 0){
-							if(deg == 0) spinPlayer(false);
+							if(deg == 0||deg == 180) spinPlayer(false);
 							else spinPlayer(true);
 						}
 						else{
-							if(deg == 90) spinPlayer(false);
+							if(deg == 90||deg == 270) spinPlayer(false);
 							else spinPlayer(true);
 						}
 					}
@@ -644,16 +751,15 @@ public class AmazementMain extends ApplicationAdapter implements InputProcessor{
 		for(MazePiece p : maze.pieces){
 			//p.scheduleMovementTask();
 		}
+		//Display.
 	}
 
 	public void render () {
 		Gdx.gl.glClearColor(1, 0, 0, 1);
 		Gdx.gl.glBlendFunc(GL20.GL_SRC_ALPHA, GL20.GL_ONE_MINUS_SRC_ALPHA);
 		Gdx.gl.glClear(GL20.GL_COLOR_BUFFER_BIT);
-		//camera.
 		camera.update();
 		tiledMapRenderer.setView(camera);
-		//tiledMapRenderer.setView(camera.combined, 500, 1, width, height);
 		tiledMapRenderer.render();
 		sb.setProjectionMatrix(camera.combined);
 		if(leftPressed) playerBody.applyLinearImpulse(-5, 0, playerBody.getPosition().x, playerBody.getPosition().y, true);
@@ -666,8 +772,6 @@ public class AmazementMain extends ApplicationAdapter implements InputProcessor{
 		shapeRenderer.begin(ShapeType.Line);
 		shapeRenderer.setColor(maze.mazeLevel.color);
 		for(MazePiece mp : maze.pieces){
-			//Vector2 pos = mp.piece.getPosition();
-			//if(mp.x2 >= 0&&mp.x2 <= width&&mp.y2 >= 0&&mp.y2 <= height)
 			shapeRenderer.line(mp.x, mp.y, mp.x2, mp.y2);
 		}
 		shapeRenderer.end();
@@ -676,7 +780,7 @@ public class AmazementMain extends ApplicationAdapter implements InputProcessor{
 		shapeRenderer.circle(pPos.x, pPos.y, playerBodyScale);
 		shapeRenderer.end();
 		sb.begin();
-		if(displayLevel) font.draw(sb, "Level " + maze.mazeLevel.level, textX, textY);
+		if(displayLevel||keepDisplayLevel) font.draw(sb, "Level " + maze.mazeLevel.level, textX, textY);
 		//sprite.draw(sb);
 		// I did not take a look at implementation but you get the idea
 		//sprite.setPosition(x, y); = body.localVector.x;
@@ -698,8 +802,6 @@ public class AmazementMain extends ApplicationAdapter implements InputProcessor{
 		//collisionEffect.setPosition(body.getPosition().x, body.getPosition().y);
 		//collisionEffect.draw(sb, Gdx.graphics.getDeltaTime());
 		//}
-		//e.setPosition(pPos.x-24, pPos.y-24);
-		//e.draw(sb);
 		for(MazePiece p : maze.pieces){
 			if(p.setPos){
 				p.setPos = false;
@@ -710,39 +812,57 @@ public class AmazementMain extends ApplicationAdapter implements InputProcessor{
 			resetPosition = false;
 			maze.mazeLevel.nextLevel();
 		}
-		//e.setRotation(MathUtils.radiansToDegrees*playerBody.getAngle());
-		//sb.dr
-		//Affine2 a = new Affine2();
-		//a.(new Vector2(pPos.x-playerOffset, pPos.y-playerOffset));
-		//sb.draw(e, playerSpriteScale, playerSpriteScale, a);
-		//sb.draw(texture, playerSpriteScale, playerSpriteScale, a);
-		e.setBounds(pPos.x-playerOffset, pPos.y-playerOffset, playerSpriteScale, playerSpriteScale);
-		//e.setPosition(pPos.x-playerOffset, pPos.y-playerOffset);
-		//e.setScale(playerSpriteScale);
-		//e.setSize(playerSpriteScale, playerSpriteScale);
 		e.setRotation(MathUtils.radiansToDegrees*playerBody.getAngle());
+		e.setPosition(pPos.x-playerOffset, pPos.y-playerOffset);
 		e.draw(sb);
-		//sb.draw(e, pPos.x-playerOffset, pPos.y-playerOffset, playerSpriteScale, playerSpriteScale);
 		sb.end();
+		if(paused){
+			Gdx.gl.glEnable(GL20.GL_BLEND);
+			Gdx.gl.glBlendFunc(GL20.GL_SRC_ALPHA, GL20.GL_ONE_MINUS_SRC_ALPHA);
+			//shapeRenderer.setProjectionMatrix(camera.combined);
+			shapeRenderer.begin(ShapeType.Filled);
+			shapeRenderer.setColor(new Color(0, 0, 0, 0.5f));
+			//shapeRenderer.setColor(Color.GRAY);
+			shapeRenderer.rect(0, 0, width, height);
+			shapeRenderer.end();
+			Gdx.gl.glDisable(GL20.GL_BLEND);
+			//font.draw(sb, "Paused", textX, textY);
+		}
 		//debugRenderer.render(world, camera.combined);
-		world.step(1/60f, 6, 2);
+		if(!paused) world.step(1/60f, 6, 2);
 		//world.step(Gdx.graphics.getDeltaTime(), 8, 3);
 	}
 
 	@Override
 	public boolean keyDown(int keycode) {
-		if(keycode == Input.Keys.LEFT)
-			leftPressed = true;
-		//body.applyLinearImpulse(-5, 0, body.getPosition().x, body.getPosition().y, true);
-		if(keycode == Input.Keys.RIGHT)
-			rightPressed = true;
-		//body.applyLinearImpulse(5, 0, body.getPosition().x, body.getPosition().y, true);
-		if(keycode == Input.Keys.UP)
-			upPressed = true;
-		//body.applyLinearImpulse(0, 5, body.getPosition().x, body.getPosition().y, true);
-		if(keycode == Input.Keys.DOWN)
-			downPressed = true;
-		//body.applyLinearImpulse(0, -5, body.getPosition().x, body.getPosition().y, true);
+		if(!paused){
+			if(keycode == Input.Keys.LEFT)
+				leftPressed = true;
+			//body.applyLinearImpulse(-5, 0, body.getPosition().x, body.getPosition().y, true);
+			if(keycode == Input.Keys.RIGHT)
+				rightPressed = true;
+			//body.applyLinearImpulse(5, 0, body.getPosition().x, body.getPosition().y, true);
+			if(keycode == Input.Keys.UP)
+				upPressed = true;
+			//body.applyLinearImpulse(0, 5, body.getPosition().x, body.getPosition().y, true);
+			if(keycode == Input.Keys.DOWN)
+				downPressed = true;
+			//body.applyLinearImpulse(0, -5, body.getPosition().x, body.getPosition().y, true);
+		}
+		if(keycode == Input.Keys.ESCAPE)
+			pauseGame();
+		if(keycode == Input.Keys.S){
+			//Thread t = new Thread(new AudioHandler("/Users/Jack/Satisfaction.wav"));
+			//t.run();
+			if(clip.isActive()){
+				print("Music playing, stopping now");
+				clip.stop();
+			}
+			else{
+				print("Music not playing, playing now");
+				clip.start();
+			}
+		}
 		return false;
 	}
 
@@ -752,38 +872,42 @@ public class AmazementMain extends ApplicationAdapter implements InputProcessor{
 	}
 
 	@Override public boolean keyUp(int keycode) {
-		if(keycode == Input.Keys.LEFT) leftPressed = false;
-		if(keycode == Input.Keys.RIGHT) rightPressed = false;
-		if(keycode == Input.Keys.UP) upPressed = false;
-		if(keycode == Input.Keys.DOWN) downPressed = false;
-		if(keycode == Input.Keys.NUM_1)
-			tiledMap.getLayers().get(0).setVisible(!tiledMap.getLayers().get(0).isVisible());
-		if(keycode == Input.Keys.NUM_2)
-			tiledMap.getLayers().get(1).setVisible(!tiledMap.getLayers().get(1).isVisible());
-		if(keycode == Input.Keys.B){
-			playerBody.setLinearVelocity(0, 0);
+		if(!paused){
+			if(keycode == Input.Keys.LEFT) leftPressed = false;
+			if(keycode == Input.Keys.RIGHT) rightPressed = false;
+			if(keycode == Input.Keys.UP) upPressed = false;
+			if(keycode == Input.Keys.DOWN) downPressed = false;
+			if(keycode == Input.Keys.NUM_1)
+				tiledMap.getLayers().get(0).setVisible(!tiledMap.getLayers().get(0).isVisible());
+			if(keycode == Input.Keys.NUM_2)
+				tiledMap.getLayers().get(1).setVisible(!tiledMap.getLayers().get(1).isVisible());
+			if(keycode == Input.Keys.B){
+				playerBody.setLinearVelocity(0, 0);
+			}
+			if(keycode == Input.Keys.G)
+				if(gravity){
+					world.setGravity(new Vector2(0, 0));
+					gravity = false;
+				}
+				else{
+					world.setGravity(new Vector2(0, -100));
+					gravity = true;
+				}
+			if(keycode == Input.Keys.R)
+				maze.turnAllRight();
+			if(keycode == Input.Keys.L)
+				maze.turnAllLeft();
 		}
-		if(keycode == Input.Keys.G)
-			if(gravity){
-				world.setGravity(new Vector2(0, 0));
-				gravity = false;
-			}
-			else{
-				world.setGravity(new Vector2(0, -100));
-				gravity = true;
-			}
-		if(keycode == Input.Keys.R)
-			maze.turnAllRight();
-		if(keycode == Input.Keys.L)
-			maze.turnAllLeft();
 		return false;
 	}
 
 	public boolean touchDown(int screenX, int screenY, int pointer, int button) {
-		Vector3 clickCoordinates = new Vector3(screenX,screenY,0);
-		Vector3 position = camera.unproject(clickCoordinates);
-		playerSprite.setPosition(position.x, position.y);
-		playerBody.setTransform(position.x, position.y, playerBody.getAngle());
+		if(!paused){
+			Vector3 clickCoordinates = new Vector3(screenX,screenY,0);
+			Vector3 position = camera.unproject(clickCoordinates);
+			playerSprite.setPosition(position.x, position.y);
+			playerBody.setTransform(position.x, position.y, playerBody.getAngle());
+		}
 		return true;
 	}
 
