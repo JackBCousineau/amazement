@@ -7,8 +7,11 @@ import java.util.Random;
 import java.util.Timer;
 import java.util.TimerTask;
 
+import javax.sound.sampled.AudioInputStream;
 import javax.sound.sampled.AudioSystem;
 import javax.sound.sampled.Clip;
+import javax.sound.sampled.LineEvent;
+import javax.sound.sampled.LineListener;
 import javax.sound.sampled.LineUnavailableException;
 import javax.sound.sampled.UnsupportedAudioFileException;
 
@@ -121,7 +124,7 @@ public class AmazementMain extends Game implements InputProcessor{
 		class MazeLevel {
 
 			Array<Integer> rowDelay = new Array<Integer>(), timerIDs = new Array<Integer>();
-			int level, maxLevel = 5, speed = 1, pieceLength = 100, offset, gridSize;
+			int level, maxLevel = 5, speed = 1, pieceLength = 100, offset, gridSize, rotationDelay = (int)findMovementDelay()*1000;
 			Color color;
 
 			public MazeLevel(int level, Color color){
@@ -129,22 +132,37 @@ public class AmazementMain extends Game implements InputProcessor{
 				this.color = color;
 				if(lowRes) pieceLength/=2;
 				setParams();
+				print("Level 1 delay: " + findMovementDelay());
 			}
 
 			public void nextLevel(){
-				playerBody.setLinearVelocity(0, 0);
-				playerBody.setTransform(50, 50, playerBody.getAngle());
-				level++;
-				//speed++;
-				mazeLevel.shrinkWall(10);
-				setParams();
-				if(color == Color.BLACK) color = Color.WHITE;
-				else color = Color.BLACK;
-				resetAll();
-				displayLevel();
-				for(MazePiece p : pieces){
-					p.scheduleMovementTask();
+				if(level != maxLevel){
+					playerBody.setLinearVelocity(0, 0);
+					playerBody.setTransform(50, 50, 0);
+					playerBody.setAngularVelocity(0);
+					level++;
+					speed++;
+					mazeLevel.shrinkWall(10);
+					setParams();
+					if(color == Color.BLACK) color = Color.WHITE;
+					else color = Color.BLACK;
+					resetAll(false);
+					displayLevel();
+					rotationDelay-=250;
+					print("Level " + level + " delay: " + findMovementDelay());
+					for(MazePiece p : pieces){
+						p.scheduleMovementTask();
+					}
 				}
+				else{
+					resetAll(true);
+					gameOver = true;
+					font.setScale(2);
+				}
+			}
+
+			private double findMovementDelay(){
+				return ((((maxLevel+1)-level)/songDuration)*1000)/2;
 			}
 
 			private void setParams(){
@@ -165,7 +183,7 @@ public class AmazementMain extends Game implements InputProcessor{
 			public void setRowDelay(){
 				for(int i = 1; i <= rowDelay.get(0); i++){
 					Random rand = new Random();
-					int randomNum = rand.nextInt((1000 - 1) + 1) + 1;
+					int randomNum = rand.nextInt((rotationDelay - 1) + 1) + 1;
 					if(rowDelay.size > i) rowDelay.set(i, randomNum);
 					else rowDelay.add(randomNum);
 					//print("Setting delay for row: " + i + ", delay is: " + rowDelay.get(i));
@@ -198,45 +216,63 @@ public class AmazementMain extends Game implements InputProcessor{
 			}
 		}
 
-		public void resetAll(){
+		public void resetAll(boolean destroy){
 			for(MazePiece p : pieces){
 				world.destroyBody(p.piece);
 			}
 			pieces.clear();
 			timer.cancel();
 			timer.purge();
-			timer = new Timer();
-			setPieces(mazeLevel.level);
+			if(!destroy){
+				timer = new Timer();
+				setPieces(mazeLevel.level);
+			}
+			else{
+				world.destroyBody(playerBody);
+				playerBody = null;
+			}
 		}
 
 		public Maze(){
 			setPieces(mazeLevel.level);
 		}
 
+		private int findNext(int deg){
+			if(deg == 0) return 90;
+			else if(deg == 90) return 180;
+			else if(deg == 180) return 270;
+			return 0;
+		}
+
 		private void setPieces(int level){
 			switch(level){
-			case 1:
+			/*case 1:
 				//addMazePiece(0, 0, 0);
-				int s = mazeLevel.gridSize;
+				int s = mazeLevel.gridSize, last = 0;
 				for(int r = 0; r <= s; r++){
+					//print("LOOPING TO NEXT PART");
 					for(int c = 0; c <= s; c+=s){
 						//if(!(r == s&&c == s))
-						addMazePiece(r, c, 0);
 					}
 				}
-				for(int r = 0; r <= s; r+=s){
+				for(int r = 0; r <= s; r+=2){
+					//last = findNext(last);
 					for(int c = 0; c <= s; c++){
 						//if(c != 10&&r != 10)
-						addMazePiece(r, c, 90);
+						//addMazePiece(r, c, 90);
+						int next = findNext(last);
+						//print("Last: " + last);
+						addMazePiece(c, r, next);
+						last = next;
 					}
 				}
-				addMazePiece(5, 5, 90);
+				//addMazePiece(5, 5, 90);
 				/*for(int l = 0; l < s; l++){
 					addMazePiece(l, 10, 0);
 					addMazePiece(0, l, 90);
 					addMazePiece(l+1, 0, 180);
 					addMazePiece(10, l+1, 270);
-				}*/
+				}
 				//addMazePie
 				//addMazePiece(2, 5, 0);
 				/*addMazePiece(3, 5, 90);
@@ -253,7 +289,7 @@ public class AmazementMain extends Game implements InputProcessor{
 				addMazePiece(5, 3, 270);
 				addMazePiece(7, 3, 0);
 				addMazePiece(7, 3, 90);
-				addMazePiece(7, 3, 180);*/
+				addMazePiece(7, 3, 180);
 				break;
 			case 2:
 				addMazePiece(2, 5, 0);
@@ -265,17 +301,20 @@ public class AmazementMain extends Game implements InputProcessor{
 				addMazePiece(7, 5, 180);
 				addMazePiece(8, 5, 0);
 				addMazePiece(10, 5, 180);
-				break;
+				break;*/
 			default:
-				addMazePiece(2, 5, 0);
-				addMazePiece(3, 5, 90);
-				addMazePiece(4, 5, 180);
-				addMazePiece(5, 5, 270);
-				addMazePiece(7, 5, 0);
-				addMazePiece(7, 5, 90);
-				addMazePiece(7, 5, 180);
-				addMazePiece(8, 5, 0);
-				addMazePiece(10, 5, 180);
+				int s = mazeLevel.gridSize, last = 0;
+				for(int r = 0; r <= s; r+=2){
+					//last = findNext(last);
+					for(int c = 0; c <= s; c++){
+						//if(c != 10&&r != 10)
+						//addMazePiece(r, c, 90);
+						int next = findNext(last);
+						//print("Last: " + last);
+						addMazePiece(c, r, next);
+						last = next;
+					}
+				}
 			}
 		}
 
@@ -403,7 +442,7 @@ public class AmazementMain extends Game implements InputProcessor{
 						}
 						else rotateRight();
 					}
-				}, mazeLevel.rowDelay.get(col), 3000);
+				}, mazeLevel.rowDelay.get(col), mazeLevel.rotationDelay);
 				//timer.schedule(new MovementTimer(), mazeLevel.rowDelay.get(col));
 			}
 
@@ -464,7 +503,7 @@ public class AmazementMain extends Game implements InputProcessor{
 	Texture texture;
 	Sprite playerSprite;
 
-	boolean leftPressed = false, rightPressed = false, upPressed = false, downPressed = false, gravity = false, drawCollision = false, resetPosition = false, displayLevel = false, keepDisplayLevel = false, lowRes = false, paused = false;
+	boolean leftPressed = false, rightPressed = false, upPressed = false, downPressed = false, gravity = false, drawCollision = false, resetPosition = false, displayLevel = false, keepDisplayLevel = false, lowRes = false, paused = false, gameOver = false, soManyFail = false;
 
 	World world;
 	Box2DDebugRenderer debugRenderer;
@@ -482,9 +521,15 @@ public class AmazementMain extends Game implements InputProcessor{
 
 	Clip clip;
 
-	public AmazementMain(int height, int width){
+	String songPath;
+
+	double songDuration;
+
+	public AmazementMain(int height, int width, String songPath){
 		this.height = height;
 		this.width = width;
+		if(songPath == null) this.songPath = "/Users/Jack/Amazement Songs/Satisfaction.wav";
+		else this.songPath = songPath;
 	}
 
 	/*public AmazementMain(int height, int width, DesktopLauncher desktopLauncher){
@@ -643,12 +688,36 @@ public class AmazementMain extends Game implements InputProcessor{
 
 		try {
 			clip = AudioSystem.getClip();
-			clip.open(AudioSystem.getAudioInputStream(new BufferedInputStream(new FileInputStream("/Users/Jack/Satisfaction.wav"))));
-			clip.start(); 
-			print("Buffer size: " + clip.getBufferSize());
+			clip.open(AudioSystem.getAudioInputStream(new BufferedInputStream(new FileInputStream(songPath))));
+			//clip.setMicrosecondPosition(220000000);
+			clip.start();
+			long frames = clip.getFrameLength();
+			songDuration = (frames+0.0) / clip.getFormat().getFrameRate();
+			print("Duration: " + songDuration);
+			print("Frame rate: " + clip.getFormat().getFrameRate());
+			clip.addLineListener(new LineListener(){
+
+				@Override
+				public void update(LineEvent event) {
+					if (event.getType() == LineEvent.Type.STOP) {
+						if((int)clip.getMicrosecondPosition()/1000000 == (int)songDuration){
+							print("Song should be over");
+							maze.resetAll(true);
+							soManyFail = true;
+						}
+					}
+				}});
 		} catch (Exception e) {
 			System.err.println(e.getMessage());
 		}
+		/*clip.addLineListener(new LineListener(){
+
+			@Override
+			public void update(LineEvent event) {
+				// TODO Auto-generated method stub
+				print("Updating line: " + event.getLine());
+
+			}});*/
 
 		camera = new OrthographicCamera();
 		camera.setToOrtho(false,width,height);
@@ -662,6 +731,7 @@ public class AmazementMain extends Game implements InputProcessor{
 		timer = new Timer();
 
 		collisionSound = Gdx.audio.newSound(Gdx.files.internal("pew.wav"));
+		//collisionSound.setVolume(soundId, volume);
 
 		world.setContactListener(new ContactListener() {
 			@Override
@@ -671,7 +741,7 @@ public class AmazementMain extends Game implements InputProcessor{
 				//playerBody.applyTorque(50, true);
 				//playerBody.setAngularVelocity(1);
 				//playerBody.
-				collisionSound.play();
+				collisionSound.play((float) .2);
 				//print("CONTACT");
 				Body a=contact.getFixtureA().getBody();
 				Body b=contact.getFixtureB().getBody();
@@ -749,7 +819,7 @@ public class AmazementMain extends Game implements InputProcessor{
 		world.getBodies(bodies);
 		displayLevel();
 		for(MazePiece p : maze.pieces){
-			//p.scheduleMovementTask();
+			p.scheduleMovementTask();
 		}
 		//Display.
 	}
@@ -766,8 +836,6 @@ public class AmazementMain extends Game implements InputProcessor{
 		if(rightPressed) playerBody.applyLinearImpulse(5, 0, playerBody.getPosition().x, playerBody.getPosition().y, true);
 		if(upPressed) playerBody.applyLinearImpulse(0, 5, playerBody.getPosition().x, playerBody.getPosition().y, true);
 		if(downPressed) playerBody.applyLinearImpulse(0, -5, playerBody.getPosition().x, playerBody.getPosition().y, true);
-		Vector2 pPos = playerBody.getPosition();
-		Sprite e = (Sprite)playerBody.getUserData();
 		ShapeRenderer shapeRenderer = new ShapeRenderer();
 		shapeRenderer.begin(ShapeType.Line);
 		shapeRenderer.setColor(maze.mazeLevel.color);
@@ -775,12 +843,17 @@ public class AmazementMain extends Game implements InputProcessor{
 			shapeRenderer.line(mp.x, mp.y, mp.x2, mp.y2);
 		}
 		shapeRenderer.end();
-		shapeRenderer.setColor(Color.WHITE);
-		shapeRenderer.begin(ShapeType.Filled);
-		shapeRenderer.circle(pPos.x, pPos.y, playerBodyScale);
-		shapeRenderer.end();
+		if(playerBody != null){
+			Vector2 pPos = playerBody.getPosition();
+			shapeRenderer.setColor(Color.WHITE);
+			shapeRenderer.begin(ShapeType.Filled);
+			shapeRenderer.circle(pPos.x, pPos.y, playerBodyScale);
+			shapeRenderer.end();
+		}
 		sb.begin();
 		if(displayLevel||keepDisplayLevel) font.draw(sb, "Level " + maze.mazeLevel.level, textX, textY);
+		if(gameOver) font.draw(sb, "You beat the game!", textX, textY);
+		if(soManyFail) font.draw(sb, "You failed, lel", textX-100, textY);
 		//sprite.draw(sb);
 		// I did not take a look at implementation but you get the idea
 		//sprite.setPosition(x, y); = body.localVector.x;
@@ -812,9 +885,13 @@ public class AmazementMain extends Game implements InputProcessor{
 			resetPosition = false;
 			maze.mazeLevel.nextLevel();
 		}
-		e.setRotation(MathUtils.radiansToDegrees*playerBody.getAngle());
-		e.setPosition(pPos.x-playerOffset, pPos.y-playerOffset);
-		e.draw(sb);
+		if(playerBody != null){
+			Sprite e = (Sprite)playerBody.getUserData();
+			Vector2 pPos = playerBody.getPosition();
+			e.setRotation(MathUtils.radiansToDegrees*playerBody.getAngle());
+			e.setPosition(pPos.x-playerOffset, pPos.y-playerOffset);
+			e.draw(sb);
+		}
 		sb.end();
 		if(paused){
 			Gdx.gl.glEnable(GL20.GL_BLEND);
@@ -835,7 +912,7 @@ public class AmazementMain extends Game implements InputProcessor{
 
 	@Override
 	public boolean keyDown(int keycode) {
-		if(!paused){
+		if(!paused&&!gameOver&&!soManyFail){
 			if(keycode == Input.Keys.LEFT)
 				leftPressed = true;
 			//body.applyLinearImpulse(-5, 0, body.getPosition().x, body.getPosition().y, true);
@@ -872,7 +949,7 @@ public class AmazementMain extends Game implements InputProcessor{
 	}
 
 	@Override public boolean keyUp(int keycode) {
-		if(!paused){
+		if(!paused&&!gameOver&&!soManyFail){
 			if(keycode == Input.Keys.LEFT) leftPressed = false;
 			if(keycode == Input.Keys.RIGHT) rightPressed = false;
 			if(keycode == Input.Keys.UP) upPressed = false;
@@ -902,7 +979,7 @@ public class AmazementMain extends Game implements InputProcessor{
 	}
 
 	public boolean touchDown(int screenX, int screenY, int pointer, int button) {
-		if(!paused){
+		if(!paused&&playerBody != null){
 			Vector3 clickCoordinates = new Vector3(screenX,screenY,0);
 			Vector3 position = camera.unproject(clickCoordinates);
 			playerSprite.setPosition(position.x, position.y);

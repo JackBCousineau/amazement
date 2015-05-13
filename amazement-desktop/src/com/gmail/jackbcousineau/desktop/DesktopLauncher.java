@@ -84,6 +84,8 @@ public class DesktopLauncher{
 	
 	
 	int width = 1024, height = 1024;
+	
+	String filePath = null;
 
 	//public boolean gameRunning = false;
 
@@ -153,7 +155,7 @@ public class DesktopLauncher{
 		}
 		//LwjglGraphics lwjglGraphics = new LwjglGraphics(config);
 		//else{
-		app = new LwjglApplication(new AmazementMain(config.height, config.width), config);
+		app = new LwjglApplication(new AmazementMain(config.height, config.width, filePath), config);
 		//graphics = app.getGraphics();
 		//p(graphics.setDisplayMode(width, height, false) + "");
 		//}
@@ -308,7 +310,8 @@ public class DesktopLauncher{
 							//audioThread.start();
 							//audioThread.run();
 							//playSound(chooser.getSelectedFile().getPath());
-							new AudioHandler(chooser.getSelectedFile().getPath());
+							//new AudioHandler(chooser.getSelectedFile().getPath());
+							filePath = chooser.getSelectedFile().getPath();
 						} catch (Exception ex) {
 						}
 					}
@@ -371,7 +374,10 @@ public class DesktopLauncher{
 
 				@Override
 				public void keyPressed(KeyEvent e) {
-					if(e.getKeyChar() == 'q'&&e.isMetaDown()) p("Should quit");
+					if(e.getKeyChar() == 'q'&&e.isMetaDown()){
+						p("Should quit");
+						System.exit(0);
+					}
 					if(e.getKeyChar() == 'p'){
 						p("Pause pressed");
 						//audioHandler.pause();

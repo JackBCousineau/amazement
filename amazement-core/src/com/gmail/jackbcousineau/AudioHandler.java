@@ -54,7 +54,7 @@ public class AudioHandler{
 		double initDur = (frames+0.0) / baseFormat.getFrameRate();
 		System.out.println("Initial dur: " + initDur);
 		rawplay(decodedFormat, din, initDur);
-		in.close();     
+		in.close();
 		System.out.println("Completely done decoding audio");
 		//durationInSeconds = (frames+0.0) / baseFormat.getFrameRate();
 	}
