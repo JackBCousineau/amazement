@@ -2,28 +2,19 @@ package com.gmail.jackbcousineau;
 
 import java.io.BufferedInputStream;
 import java.io.FileInputStream;
-import java.io.IOException;
 import java.util.Random;
 import java.util.Timer;
 import java.util.TimerTask;
 
-import javax.sound.sampled.AudioInputStream;
 import javax.sound.sampled.AudioSystem;
 import javax.sound.sampled.Clip;
 import javax.sound.sampled.LineEvent;
 import javax.sound.sampled.LineListener;
-import javax.sound.sampled.LineUnavailableException;
-import javax.sound.sampled.UnsupportedAudioFileException;
 
-import sun.security.krb5.Config;
-
-import com.badlogic.gdx.ApplicationAdapter;
 import com.badlogic.gdx.Game;
 import com.badlogic.gdx.Gdx;
 import com.badlogic.gdx.Input;
-import com.badlogic.gdx.InputProcessor;
-import com.badlogic.gdx.LifecycleListener;
-import com.badlogic.gdx.Screen;
+import com.badlogic.gdx.InputAdapter;
 import com.badlogic.gdx.audio.Sound;
 import com.badlogic.gdx.graphics.Color;
 import com.badlogic.gdx.graphics.GL20;
@@ -38,7 +29,6 @@ import com.badlogic.gdx.maps.tiled.TiledMap;
 import com.badlogic.gdx.maps.tiled.TiledMapRenderer;
 import com.badlogic.gdx.maps.tiled.TmxMapLoader;
 import com.badlogic.gdx.maps.tiled.renderers.OrthogonalTiledMapRenderer;
-import com.badlogic.gdx.math.Affine2;
 import com.badlogic.gdx.math.MathUtils;
 import com.badlogic.gdx.math.Vector2;
 import com.badlogic.gdx.math.Vector3;
@@ -54,46 +44,452 @@ import com.badlogic.gdx.physics.box2d.ContactListener;
 import com.badlogic.gdx.physics.box2d.EdgeShape;
 import com.badlogic.gdx.physics.box2d.FixtureDef;
 import com.badlogic.gdx.physics.box2d.Manifold;
-import com.badlogic.gdx.physics.box2d.PolygonShape;
 import com.badlogic.gdx.physics.box2d.World;
 import com.badlogic.gdx.utils.Array;
 import com.gmail.jackbcousineau.AmazementMain.Maze.MazePiece;
-//import com.gmail.jackbcousineau.desktop.DesktopLauncher;
 
+public class AmazementMain extends Game{
 
-public class AmazementMain extends Game implements InputProcessor{
+	/**
+	 * Custom printing function -- greatly simplifies console output
+	 * @param toPrint Object to print
+	 */
+	private void print(Object toPrint){
+		System.out.println(toPrint);
+	}
 
-	//DesktopLauncher desktopLauncher;
+	int height, width;
+	int playerBodyScale = 23, playerOffset = 24, textX = 400, textY = 550;
 
-	int height, width, playerBodyScale = 23, playerSpriteScale = 48, playerOffset = 24, textX = 400, textY = 550;
+	OrthographicCamera camera = new OrthographicCamera();
+	TiledMap tiledMap;
+	TiledMapRenderer tiledMapRenderer;
+	SpriteBatch sb;
+	Texture texture;
+	Sprite playerSprite;
+	Clip clip;
+	BitmapFont font;
 
+	World world = new World(new Vector2(0, 0), false); ;
+	Box2DDebugRenderer debugRenderer;
+	Body playerBody;
+	Maze maze;
+	Sound collisionSound;
+
+	boolean leftPressed = false, rightPressed = false, upPressed = false, downPressed = false,
+			gravity = false, drawCollision = false, resetPosition = false,
+			displayLevel = false, keepDisplayLevel = false, gameOver = false, soManyFail = false,
+			lowRes = false, paused = false, debug = false;
+
+	String songPath;
+
+	double songDuration;
+
+	Timer timer = new Timer();
+
+	/**
+	 * Constructs new AmazementGame object -- base game constructor.<br>
+	 * As a subclass of com.badlogic.gdx.Game, calls inherited creation<br>
+	 * and initialization method as soon as this constructor is finished.
+	 * @param height The game window height.
+	 * @param width The game window width.
+	 * @param songPath The filepath to the song to use. If nothing is selected,<br>
+	 * defaults to the included file "Satisfaction.wav", by the Rolling Stones;<br>
+	 * should be placed in your /Users/YourAccountName/Amazement Songs/ folder.
+	 */
+	public AmazementMain(int height, int width, String songPath){
+		this.height = height;
+		this.width = width;
+		if(songPath == null)
+			this.songPath = System.getProperty("user.home")+"/Amazement Songs/Satisfaction.wav";
+		else
+			this.songPath = songPath;
+	}
+
+	/**
+	 * Implementation of libgdx engine initialization. Loads and initializes most assets,<br>
+	 * and all listeners, that are used in the game itself.
+	 */
+	@Override public void create (){
+		Box2D.init();
+		Gdx.graphics.setDisplayMode(width, height, false);
+		Gdx.graphics.setTitle("Amazement");
+		font = new BitmapFont();
+
+		if(width == 512){
+			lowRes = true;
+			playerBodyScale = 12;
+			playerOffset/=2;
+			textX = 190;
+			textY = 290;
+			font.setScale(3);
+			tiledMap = new TmxMapLoader().load("map512.tmx");
+		}
+		else{
+			font.setScale(5);
+			tiledMap = new TmxMapLoader().load("map1024.tmx");
+		}
+		tiledMapRenderer = new OrthogonalTiledMapRenderer(tiledMap);
+		camera.setToOrtho(false,width,height);
+		camera.update();
+		sb = new SpriteBatch();
+
+		try{
+			clip = AudioSystem.getClip();
+			clip.open(AudioSystem.getAudioInputStream(new BufferedInputStream(new FileInputStream(songPath))));
+		} catch (Exception e){
+			System.err.println("Error loading .wav file");
+			System.err.println(e.getMessage());
+		}
+		clip.start();
+		songDuration = clip.getFrameLength()/clip.getFormat().getFrameRate();
+		clip.addLineListener(new LineListener(){
+
+			public void update(LineEvent event){
+				if (event.getType() == LineEvent.Type.STOP){
+					if((int)clip.getMicrosecondPosition()/1000000 == (int)songDuration){
+						maze.resetAll(true);
+						soManyFail = true;
+					}
+				}
+			}});
+
+		Gdx.input.setInputProcessor(new InputAdapter(){
+
+			public boolean keyDown(int keycode){
+				if(playerBody != null){
+					if(!paused){
+						if(keycode == Input.Keys.LEFT)
+							leftPressed = true;
+						if(keycode == Input.Keys.RIGHT)
+							rightPressed = true;
+						if(keycode == Input.Keys.UP)
+							upPressed = true;
+						if(keycode == Input.Keys.DOWN)
+							downPressed = true;
+					}
+					if(keycode == Input.Keys.ESCAPE)
+						pauseGame();
+				}
+				return false;
+			}
+
+			public boolean keyUp(int keycode){
+				if(!paused&&playerBody != null){
+					if(keycode == Input.Keys.LEFT)
+						leftPressed = false;
+					if(keycode == Input.Keys.RIGHT)
+						rightPressed = false;
+					if(keycode == Input.Keys.UP)
+						upPressed = false;
+					if(keycode == Input.Keys.DOWN)
+						downPressed = false;
+					if(!debug){
+						if(keycode == Input.Keys.G){
+							if(gravity){
+								world.setGravity(new Vector2(0, 0));
+								gravity = false;
+							}
+							else{
+								world.setGravity(new Vector2(0, -100));
+								gravity = true;
+							}
+						}
+						if(keycode == Input.Keys.B)
+							playerBody.setLinearVelocity(0, 0);
+						if(keycode == Input.Keys.R)
+							maze.turnAllRight();
+						if(keycode == Input.Keys.L)
+							maze.turnAllLeft();
+					}
+				}
+				return false;
+			}
+
+			public boolean touchDown(int screenX, int screenY, int pointer, int button){
+				if(!debug&&!paused&&playerBody != null){
+					Vector3 position = camera.unproject(new Vector3(screenX,screenY,0));
+					playerBody.setTransform(position.x, position.y, playerBody.getAngle());
+				}
+				return true;
+			}
+		});
+
+		collisionSound = Gdx.audio.newSound(Gdx.files.internal("pew.wav"));
+
+		world.setContactListener(new ContactListener(){
+
+			public void beginContact(Contact contact){
+				collisionSound.play((float) .2);
+				Body bodyA = contact.getFixtureA().getBody();
+				Body bodyB = contact.getFixtureB().getBody();
+				Vector2 vel = playerBody.getLinearVelocity();
+				if(vel.x != 0&&vel.y != 0){
+					int deg = (int)(MathUtils.radiansToDegrees*bodyA.getAngle());
+					if(vel.x > 0){
+						if(vel.y > 0){
+							if(deg == 0||deg == 180)
+								spinPlayer(true);
+							else
+								spinPlayer(false);
+						}
+						else{
+							if(deg == 90||deg == 270)
+								spinPlayer(true);
+							else
+								spinPlayer(false);
+						}
+					}
+					else{
+						if(vel.y > 0){
+							if(deg == 0||deg == 180)
+								spinPlayer(false);
+							else
+								spinPlayer(true);
+						}
+						else{
+							if(deg == 90||deg == 270)
+								spinPlayer(false);
+							else
+								spinPlayer(true);
+						}
+					}
+				}
+				if(bodyB.getPosition().x > width||bodyB.getPosition().y > height)
+					resetPosition = true;
+			}
+
+			/**
+			 * In the absence of a native Adapter for the libgdx ContactListener interface,
+			 * the following three methods are stubs for the default ContactListener implementation.
+			 */
+			public void endContact(Contact contact){
+			}
+
+			public void preSolve(Contact contact, Manifold oldManifold){
+			}
+
+			public void postSolve(Contact contact, ContactImpulse impulse){
+			}
+		});
+
+		if(debug) debugRenderer = new Box2DDebugRenderer();
+
+		createPlayer();
+		maze = new Maze();
+
+		displayLevel();
+		maze.startWallMovement();
+	}
+
+	/**
+	 * The libgdx rendering function, run every 60th of a second. Anything seen on<br>
+	 * the screen is drawn here, according to the corresponding states of the physics<br>
+	 * bodies being simulated in the corresponding simulation in the box2d world.<p>
+	 * 
+	 * The endpoints of the MazePiece walls had to be manually recalculated every 5<br>
+	 * milliseconds during rotation so that they could simply be rendered here at all.<p>
+	 * 
+	 * Any modifications to body movement must be done while rendering. Elements in<br>
+	 * the box2d simulation cannot be made asynchronously from the inherited render<br>
+	 * calls that are constantly being run by both the box2d engine and its libgdx<br>
+	 * rendition counterpart.
+	 */
+	public void render (){
+		Gdx.gl.glClearColor(1, 0, 0, 1);
+		Gdx.gl.glBlendFunc(GL20.GL_SRC_ALPHA, GL20.GL_ONE_MINUS_SRC_ALPHA);
+		Gdx.gl.glClear(GL20.GL_COLOR_BUFFER_BIT);
+		camera.update();
+		tiledMapRenderer.setView(camera);
+		tiledMapRenderer.render();
+		sb.setProjectionMatrix(camera.combined);
+		if(leftPressed)
+			playerBody.applyLinearImpulse(-5, 0, playerBody.getPosition().x, playerBody.getPosition().y, true);
+		if(rightPressed)
+			playerBody.applyLinearImpulse(5, 0, playerBody.getPosition().x, playerBody.getPosition().y, true);
+		if(upPressed)
+			playerBody.applyLinearImpulse(0, 5, playerBody.getPosition().x, playerBody.getPosition().y, true);
+		if(downPressed)
+			playerBody.applyLinearImpulse(0, -5, playerBody.getPosition().x, playerBody.getPosition().y, true);
+		ShapeRenderer shapeRenderer = new ShapeRenderer();
+		shapeRenderer.begin(ShapeType.Line);
+		shapeRenderer.setColor(maze.mazeLevel.color);
+		for(MazePiece mp : maze.pieces){
+			shapeRenderer.line(mp.x, mp.y, mp.x2, mp.y2);
+		}
+		shapeRenderer.end();
+		if(playerBody != null){
+			Vector2 pPos = playerBody.getPosition();
+			shapeRenderer.setColor(Color.WHITE);
+			shapeRenderer.begin(ShapeType.Filled);
+			shapeRenderer.circle(pPos.x, pPos.y, playerBodyScale);
+			shapeRenderer.end();
+		}
+		sb.begin();
+		if(displayLevel||keepDisplayLevel)
+			font.draw(sb, "Level " + maze.mazeLevel.level, textX, textY);
+		if(gameOver)
+			font.draw(sb, "You beat the game!", textX, textY);
+		if(soManyFail)
+			font.draw(sb, "You failed, lel", textX-100, textY);
+		for(MazePiece p : maze.pieces){
+			if(p.setPos){
+				p.setPos = false;
+				p.piece.setTransform(p.x, p.y, p.desiredAngle);
+			}
+		}
+		if(resetPosition){
+			resetPosition = false;
+			maze.mazeLevel.nextLevel();
+		}
+		if(playerBody != null){
+			Sprite e = (Sprite)playerBody.getUserData();
+			Vector2 pPos = playerBody.getPosition();
+			e.setRotation(MathUtils.radiansToDegrees*playerBody.getAngle());
+			e.setPosition(pPos.x-playerOffset, pPos.y-playerOffset);
+			e.draw(sb);
+		}
+		sb.end();
+		if(paused){
+			Gdx.gl.glEnable(GL20.GL_BLEND);
+			Gdx.gl.glBlendFunc(GL20.GL_SRC_ALPHA, GL20.GL_ONE_MINUS_SRC_ALPHA);
+			shapeRenderer.begin(ShapeType.Filled);
+			shapeRenderer.setColor(new Color(0, 0, 0, 0.5f));
+			shapeRenderer.rect(0, 0, width, height);
+			shapeRenderer.end();
+			Gdx.gl.glDisable(GL20.GL_BLEND);
+		}
+		if(debug) debugRenderer.render(world, camera.combined);
+		if(!paused) world.step(1/60f, 6, 2);
+	}
+
+	/**
+	 * libgdx function called when the LWJGL window is closed,
+	 * safely disposes certain resources being utilized by the game
+	 */
 	@Override
 	public void dispose (){
-		//Gdx.graphics.setTitle("amazement");
 		sb.dispose();
 		texture.dispose();
 		world.dispose();
 		collisionSound.dispose();
 		print("Disposing amazement");
-		//desktopLauncher.gameRunning = false;
 	}
 
-	class EdgeBody{
+	/**
+	 * libgdx method that is called when the system loses focus on the game
+	 * window, calls our custom pause function if the game isn't already paused
+	 */
+	public void pause(){
+		if(!paused) pauseGame();
+	}
 
-		public Body north, east, south, west, northOuter, eastOuter, westOuter, southOuter;
+	/**
+	 * Pause-toggle function. Starts and stops music playback automatically.
+	 */
+	private void pauseGame(){
+		if(!paused){
+			paused = true;
+			clip.stop();
+		}
+		else{
+			paused = false;
+			clip.start();
+			if(keepDisplayLevel)
+				keepDisplayLevel = false;
+		}
+	}
 
-		public EdgeBody(){
-			north = createBody(1);
-			east = createBody(2);
-			south = createBody(3);
-			west = createBody(4);
-			northOuter = createBody(5);
-			eastOuter = createBody(6);
-			westOuter = createBody(7);
-			southOuter = createBody(8);
+	/**
+	 * Creates the player entity/body, along with the resolution-appropriate texture.
+	 */
+	private void createPlayer(){
+		if(lowRes)
+			texture = new Texture(Gdx.files.internal("player24.png"));
+		else
+			texture = new Texture(Gdx.files.internal("player48.png"));
+		playerSprite = new Sprite(texture);
+
+		CircleShape circleShape = new CircleShape();
+		circleShape.setRadius(playerBodyScale);
+		BodyDef bodyDef = new BodyDef();
+		bodyDef.position.set(50, 50);
+		bodyDef.type = BodyType.DynamicBody;
+		bodyDef.fixedRotation = false;
+		playerBody = world.createBody(bodyDef);
+		FixtureDef boxFixtureDef = new FixtureDef();
+		boxFixtureDef.shape = circleShape;
+		boxFixtureDef.restitution = 0.75f;
+		boxFixtureDef.density = 0f;
+		playerBody.createFixture(boxFixtureDef);
+		circleShape.dispose();
+		playerBody.setUserData(playerSprite);
+	}
+
+	/**
+	 * Displays the current-level label on the screen for 1.5 seconds --
+	 * enables a flag for the renderer to display the level label,
+	 * and schedules a task to disable the flag in 1500 milliseconds.
+	 */
+	private void displayLevel(){
+		displayLevel = true;
+		timer.schedule(new TimerTask(){
+
+			@Override
+			public void run(){
+				if(paused)
+					keepDisplayLevel = true;
+				displayLevel = false;
+			}}, 1500);
+	}
+
+	/**
+	 * Spins the player in a given direction, with varying modifications, depending
+	 * on the player's current angular velocity. Stays within a preset velocity range.
+	 * @param dir true for counter-clockwise, false for clockwise.
+	 */
+	private void spinPlayer(boolean dir){
+		float vel = playerBody.getAngularVelocity();
+		double velMod = 0;
+		if(Math.abs(vel) > 0)
+			velMod++;
+		else{
+			if(Math.abs(vel) < 2)
+				velMod+=1.5;
+			else
+				velMod+=3;
+		}
+		if(!dir)
+			velMod*=-1;
+		if(Math.abs(vel+velMod) <= 7)
+			playerBody.setAngularVelocity(vel+(float)velMod);
+	}
+
+	/**
+	 * The Maze class, contains all elements of the maze itself
+	 */
+	class Maze{
+
+		MazeLevel mazeLevel = new MazeLevel(1);
+		Array<MazePiece> pieces = new Array<MazePiece>();
+		Timer timer = new Timer();
+
+		/**
+		 * Maze constructor; places the initial maze pieces and the static maze boundaries
+		 */
+		private Maze(){
+			setPieces();
+			for(int i = 1; i < 9; i++){
+				createBody(i);
+			}
 		}
 
-		private Body createBody(int i){
+		/**
+		 * Creates the in-game frame boundaries, and the outlying area
+		 * in the upper-right corner that serves as the player's objective
+		 * @param i The type of wall to create, distinguished by integers
+		 */
+		private void createBody(int i){
 			EdgeShape lineShape = new EdgeShape();
 			BodyDef lineBodyDef = new BodyDef();
 			lineBodyDef.type = BodyType.KinematicBody;
@@ -109,114 +505,39 @@ public class AmazementMain extends Game implements InputProcessor{
 			else if(i == 7) lineShape.set(width-100, height, width-100, height+50);
 			else if(i == 8) lineShape.set(width, height-100, width+50, height-100);
 			boxFixtureDef.restitution = 0.75f;
-			//boxFixtureDef.restitution = 100f;
-			//boxFixtureDef.density = 2.0f;
 			boxFixtureDef.shape = lineShape;
 			lineBody.createFixture(boxFixtureDef);
 			lineShape.dispose();
-			return lineBody;
 		}
 
-	}
-
-	class Maze{
-
-		class MazeLevel {
-
-			Array<Integer> rowDelay = new Array<Integer>(), timerIDs = new Array<Integer>();
-			int level, maxLevel = 5, speed = 1, pieceLength = 100, offset, gridSize, rotationDelay = (int)findMovementDelay()*1000;
-			Color color;
-
-			public MazeLevel(int level, Color color){
-				this.level = level;
-				this.color = color;
-				if(lowRes) pieceLength/=2;
-				setParams();
-				print("Level 1 delay: " + findMovementDelay());
-			}
-
-			public void nextLevel(){
-				if(level != maxLevel){
-					playerBody.setLinearVelocity(0, 0);
-					playerBody.setTransform(50, 50, 0);
-					playerBody.setAngularVelocity(0);
-					level++;
-					speed++;
-					mazeLevel.shrinkWall(10);
-					setParams();
-					if(color == Color.BLACK) color = Color.WHITE;
-					else color = Color.BLACK;
-					resetAll(false);
-					displayLevel();
-					rotationDelay-=250;
-					print("Level " + level + " delay: " + findMovementDelay());
-					for(MazePiece p : pieces){
-						p.scheduleMovementTask();
-					}
-				}
-				else{
-					resetAll(true);
-					gameOver = true;
-					font.setScale(2);
-				}
-			}
-
-			private double findMovementDelay(){
-				return ((((maxLevel+1)-level)/songDuration)*1000)/2;
-			}
-
-			private void setParams(){
-				offset = width%pieceLength/2;
-				gridSize = (width-(width%pieceLength))/pieceLength;
-				if(rowDelay.size == 0) rowDelay.add(gridSize);
-				else rowDelay.set(0, gridSize);
-				print("Playing level " + level + ", grid size: " + gridSize + "x" + gridSize + ", offset: " + offset);
-				setRowDelay();
-			}
-
-			public void shrinkWall(int lengthToSubtract){
-				pieceLength-=lengthToSubtract;
-				offset = width%pieceLength/2;
-				print("New length: " + pieceLength + ", offset: " + offset);
-			}
-
-			public void setRowDelay(){
-				for(int i = 1; i <= rowDelay.get(0); i++){
-					Random rand = new Random();
-					int randomNum = rand.nextInt((rotationDelay - 1) + 1) + 1;
-					if(rowDelay.size > i) rowDelay.set(i, randomNum);
-					else rowDelay.add(randomNum);
-					//print("Setting delay for row: " + i + ", delay is: " + rowDelay.get(i));
-				}
-				//print("Set row delays for " + rowDelay.get(0) + " rows");
-			}
-		}
-
-		MazeLevel mazeLevel = new MazeLevel(1, Color.BLACK);
-
-		Array<MazePiece> pieces = new Array<MazePiece>();
-		Timer timer = new Timer();
-
-		public void turnAll(){
-			print("TURNING ALL");
+		/**
+		 * Turns all loaded maze pieces 90 degrees
+		 * to the left, used for debugging
+		 */
+		private void turnAllLeft(){
 			for(MazePiece p : pieces){
 				p.rotateLeft();
 			}
 		}
 
-		public void turnAllLeft(){
-			for(MazePiece p : pieces){
-				p.rotateLeft();
-			}
-		}
-
-		public void turnAllRight(){
+		/**
+		 * Turns all loaded maze pieces 90 degrees
+		 * to the right, used for debugging
+		 */
+		private void turnAllRight(){
 			for(MazePiece p : pieces){
 				p.rotateRight();
 			}
 		}
 
-		public void resetAll(boolean destroy){
+		/**
+		 * Resets -- literally destroys and recreates -- all maze pieces
+		 * to the current specifications defined in the MazeLevel instance,
+		 * and resets the timer object for a new iteration of tasks
+		 * @param destroy Completely destroy the wall pieces, the timer,
+		 * and remove the player body from the game
+		 */
+		private void resetAll(boolean destroy){
 			for(MazePiece p : pieces){
 				world.destroyBody(p.piece);
 			}
@@ -225,92 +546,69 @@ public class AmazementMain extends Game implements InputProcessor{
 			timer.purge();
 			if(!destroy){
 				timer = new Timer();
-				setPieces(mazeLevel.level);
+				setPieces();
 			}
 			else{
+				timer = null;
 				world.destroyBody(playerBody);
 				playerBody = null;
+				leftPressed = false;
+				rightPressed = false;
+				upPressed = false;
+				downPressed = false;
 			}
 		}
 
-		public Maze(){
-			setPieces(mazeLevel.level);
-		}
-
+		/**
+		 * Finds the next angle of a given counter-clockwise turn of a unit circle
+		 * @param deg Degrees to find subsequent angle of
+		 * @return Degrees of subsequent angle that was found, or 0 if given invalid input
+		 */
 		private int findNext(int deg){
-			if(deg == 0) return 90;
-			else if(deg == 90) return 180;
-			else if(deg == 180) return 270;
+			switch(deg){
+			case 0:
+				return 90;
+			case 90:
+				return 180;
+			case 180:
+				return 270;
+			}
 			return 0;
 		}
 
-		private void setPieces(int level){
-			switch(level){
-			/*case 1:
-				//addMazePiece(0, 0, 0);
-				int s = mazeLevel.gridSize, last = 0;
-				for(int r = 0; r <= s; r++){
-					//print("LOOPING TO NEXT PART");
-					for(int c = 0; c <= s; c+=s){
-						//if(!(r == s&&c == s))
-					}
-				}
-				for(int r = 0; r <= s; r+=2){
-					//last = findNext(last);
-					for(int c = 0; c <= s; c++){
-						//if(c != 10&&r != 10)
-						//addMazePiece(r, c, 90);
-						int next = findNext(last);
-						//print("Last: " + last);
-						addMazePiece(c, r, next);
-						last = next;
-					}
-				}
-				//addMazePiece(5, 5, 90);
-				/*for(int l = 0; l < s; l++){
-					addMazePiece(l, 10, 0);
-					addMazePiece(0, l, 90);
-					addMazePiece(l+1, 0, 180);
-					addMazePiece(10, l+1, 270);
-				}
-				//addMazePie
-				//addMazePiece(2, 5, 0);
-				/*addMazePiece(3, 5, 90);
-				addMazePiece(4, 5, 180);
-				addMazePiece(5, 5, 270);
-				addMazePiece(7, 5, 0);
-				addMazePiece(7, 5, 90);
-				addMazePiece(7, 5, 180);
-				addMazePiece(8, 5, 0);
-				addMazePiece(10, 5, 180);
-				addMazePiece(2, 3, 0);
-				addMazePiece(3, 3, 90);
-				addMazePiece(4, 3, 180);
-				addMazePiece(5, 3, 270);
-				addMazePiece(7, 3, 0);
-				addMazePiece(7, 3, 90);
-				addMazePiece(7, 3, 180);
-				break;
-			case 2:
-				addMazePiece(2, 5, 0);
-				addMazePiece(3, 5, 90);
-				addMazePiece(4, 5, 180);
-				addMazePiece(5, 5, 270);
-				addMazePiece(7, 5, 0);
-				addMazePiece(7, 5, 90);
-				addMazePiece(7, 5, 180);
-				addMazePiece(8, 5, 0);
-				addMazePiece(10, 5, 180);
-				break;*/
+		/**
+		 * Places the pieces of the maze. Support for specific layouts for any given level
+		 * is in place, but not utilized -- see the commented blocks for example use. 
+		 */
+		private void setPieces(){
+			int s = mazeLevel.gridSize;
+			switch(mazeLevel.level){
+			/*	// Able to use case queries to detect and set individual level layouts
+			 *  case 1:
+			 *		addMazePiece(5, 5, 90);
+			 *		addMazePiece(5, 7, 270);
+			 *		break;
+			 *	case 2:
+			 *		for(int r = 0; r <= s; r++){
+			 * 			for(int c = 0; c <= s; c+=s){
+			 *				if(r != s) addMazePiece(c, r, 90);
+			 *			}
+			 *		}
+			 *		for(int r = 0; r <= s; r+=s){
+			 *			for(int c = 0; c <= s; c++){
+			 *				if(c != s) addMazePiece(c, r, 0);
+			 *			}
+			 *		}
+			 *		break;
+			 */
+			/**
+			 *  Use default case for any level that's not explicitly defined, or that doesn't break at the end.
+			 */
 			default:
-				int s = mazeLevel.gridSize, last = 0;
+				int last = 0;
 				for(int r = 0; r <= s; r+=2){
-					//last = findNext(last);
 					for(int c = 0; c <= s; c++){
-						//if(c != 10&&r != 10)
-						//addMazePiece(r, c, 90);
 						int next = findNext(last);
-						//print("Last: " + last);
 						addMazePiece(c, r, next);
 						last = next;
 					}
@@ -318,26 +616,167 @@ public class AmazementMain extends Game implements InputProcessor{
 			}
 		}
 
+		/**
+		 * Uses current level and wall dimensions to calculate
+		 * given "simple" grid coordinates into an actual
+		 * location on the game screen, in raw coordinates.
+		 * @param x Simplified X coordinate
+		 * @param y Simplified Y coordinate
+		 * @return A Vector2 of the raw gamespace coordinates
+		 */
 		private Vector2 snapToGrid(int x, int y){
 			return new Vector2((x*mazeLevel.pieceLength)+mazeLevel.offset, (y*mazeLevel.pieceLength)+mazeLevel.offset);
 		}
 
+		/**
+		 * Adds a MazePiece to the current level of the game.
+		 * @param x Simplified X coordinate
+		 * @param y Simplified Y coordinate
+		 * @param degrees Orientation to start the wall at, in degrees.<br>
+		 * Must be a positive, quarter-interval of a unit circle. 
+		 */
 		private void addMazePiece(int x, int y, int degrees){
 			Vector2 vec = snapToGrid(x, y);
 			pieces.add(new MazePiece((int)vec.x, (int)vec.y, degrees, x, y));
 		}
 
+		/**
+		 * Tells each loaded wall piece to start its pseudo-randomized movement.
+		 */
+		private void startWallMovement(){
+			for(MazePiece p : pieces)
+				p.scheduleMovementTask();
+		}
+
+		/**
+		 * The MazeLevel class, stores all of the information about the current
+		 * level and the measurement specifications of the walls being used
+		 */
+		class MazeLevel{
+
+			Array<Integer> rowDelay = new Array<Integer>(), timerIDs = new Array<Integer>();
+			int level, offset, gridSize;
+			int maxLevel = 6, speed = 1, pieceLength = 100, wallDecrement = 10;
+			long rotationDelay;
+			Color color = Color.BLACK;
+
+			/**
+			 * MazeLevel constructor, starts at given level and changes
+			 * select attributes depending on the resolution being used,
+			 * then sets the general level parameters
+			 * @param level Initial level
+			 */
+			private MazeLevel(int level){
+				this.level = level;
+				if(lowRes){
+					pieceLength/=2;
+					wallDecrement/=2;
+				}
+				setParams();
+			}
+
+			/**
+			 * Brings the game to the next level. Specifically, resetting the player's position,
+			 * velocity, and rotation; incrementing the level and the wall speed; shrinking the wall sizes;
+			 * updating the level parameters; alternating color between black and white; resetting the maze
+			 * walls and their respective task handlers; and displaying the level label.<p>
+			 * 
+			 * If the max level has already been reached, and subsequently beaten,
+			 * which it has been if this function is being called, ends the game
+			 * and displays a message to the victorious player, whom at this point
+			 * will be delirious with glee from a sudden, overwhelming release of dopamine<p>
+			 * 
+			 * ( ͡° ͜ʖ ͡°)
+			 */
+			private void nextLevel(){
+				if(level != maxLevel){
+					playerBody.setLinearVelocity(0, 0);
+					playerBody.setTransform(50, 50, 0);
+					playerBody.setAngularVelocity(0);
+
+					level++;
+					speed++;
+
+					pieceLength-=wallDecrement;
+					offset = width%pieceLength/2;
+					print("New wall length: " + pieceLength + " with offset: " + offset);
+
+					setParams();
+
+					if(color == Color.BLACK) color = Color.WHITE;
+					else color = Color.BLACK;
+
+					resetAll(false);
+
+					displayLevel();
+
+					startWallMovement();
+				}
+				else{
+					resetAll(true);
+					gameOver = true;
+					font.setScale(2);
+				}
+			}
+
+			/**
+			 * Calculates the wall-movement delay, based on the max level,
+			 * current level, and the duration of the song being played
+			 * @return The movement delay, in seconds
+			 */
+			private double findMovementDelay(){
+				return (((((maxLevel+1)-level)/songDuration)*1000)/3);
+			}
+
+			/**
+			 *  Updates/sets the wall-grid base offsets, the grid-size itself,
+			 *  prints information about the level being created, and creates
+			 *  the random delays between spinning-cycles for each row of walls
+			 */
+			private void setParams(){
+				rotationDelay = (long)(findMovementDelay()*1000);
+				offset = width%pieceLength/2;
+				gridSize = (width-(width%pieceLength))/pieceLength;
+				print("Playing level " + level + ", grid size: " + gridSize + "x" + gridSize + ", offset: " + offset + ", movement delay: " + findMovementDelay());
+
+				int roundedDelay = (int)(Math.round(rotationDelay));
+				for(int i = 0; i <= gridSize; i++){
+					Random rand = new Random();
+					int randomNum = rand.nextInt(roundedDelay) + 1;
+					if(rowDelay.size > i) rowDelay.set(i, randomNum);
+					else rowDelay.add(randomNum);
+				}
+			}
+		}
+
+		/**
+		 * The MazePiece class. Handles an individual wall segment and its corresponding timer.
+		 */
 		class MazePiece{
 
-			public Body piece;
+			/**
+			 * The box2d body used to simulate the wall itself
+			 */
+			private Body piece;
 
-			int x, y, x2, y2, degrees = 0, row, col;
+			int x, y, x2, y2, row, col;
+			int degrees = 0;
 
-			boolean isMoving = false, setPos = false, checkValid = false, valid0 = true, valid90 = true, valid180 = true, valid270 = true;
+			boolean isMoving = false, setPos = false, checkValid = false,
+					valid0 = true, valid90 = true, valid180 = true, valid270 = true;
 
 			float desiredAngle;
 
-			public MazePiece(int x, int y, int degrees, int row, int col){
+			/**
+			 * Constructs a new MazePiece at the given coordinates, with the given orientation.<br>
+			 * Takes in row and column data out of convenience; more efficient than recalculating.
+			 * @param x Raw X location in-game
+			 * @param y Raw Y location in-game
+			 * @param degrees Initial orientation, in degrees
+			 * @param row The given row location
+			 * @param col The given column location
+			 */
+			private MazePiece(int x, int y, int degrees, int row, int col){
 				int size = mazeLevel.pieceLength;
 				int gridSize = mazeLevel.gridSize;
 				this.x = x;
@@ -346,6 +785,11 @@ public class AmazementMain extends Game implements InputProcessor{
 				y2 = y;
 				this.row = row;
 				this.col = col;
+				/**
+				 * Prevents walls that are adjacent to the edge of the screen
+				 * from being able to turn in a direction that would end
+				 * up with the piece off-screen.
+				 */
 				if(row == 0||row == gridSize||col == 0||col == gridSize){
 					if(row == 0){
 						valid180 = false;
@@ -382,31 +826,33 @@ public class AmazementMain extends Game implements InputProcessor{
 					modifyDegrees(270, false);
 					y2-=size;
 				}
-				//boxFixtureDef.restitution = 0.75f;
-				//boxFixtureDef.density = 2.0f;
 				lineFixtureDef.shape = lineShape;
 				piece.createFixture(lineFixtureDef);
 				lineShape.dispose();
-				//print("x1: " + x + ", y1: " + y + ", x2: " + x2 + ", y2: " + y2);
 			}
 
-			public void modifyDegrees(int mod, boolean rotate){
-				boolean stop = false;
+			/**
+			 * Performs rotation for a given wall, provided that the action is valid
+			 * @param mod Amount of degrees to turn wall. Must be a quarter-interval<br>
+			 * of a unit circle, between 360 and -360, inclusive.
+			 * @param animate Whether to animate the rotation or not.
+			 */
+			private void modifyDegrees(int mod, boolean animate){
 				int originalDegrees = degrees;
 				degrees+=mod;
-				if(degrees < 0) degrees+=360;
-				else if(degrees >= 360) degrees%=360;
+				if(degrees < 0)
+					degrees+=360;
+				else if(degrees >= 360)
+					degrees%=360;
 				if(checkValid){
 					if((degrees == 0&&!valid0)||(degrees == 90&&!valid90)||(degrees == 180&&!valid180)||(degrees == 270&&!valid270)){
 						degrees = originalDegrees;
 						isMoving = false;
-						stop = true;
 						return;
 					}
 				}
-				if(stop) print("This should not run");
 				float desiredAngle = piece.getAngle() + (MathUtils.degreesToRadians * mod);
-				if(rotate){
+				if(animate){
 					if(mod > 0){
 						piece.setAngularVelocity(mazeLevel.speed);
 						scheduleAngleTask(desiredAngle, true);
@@ -419,44 +865,55 @@ public class AmazementMain extends Game implements InputProcessor{
 				else piece.setTransform(piece.getPosition(), desiredAngle);
 			}
 
-			public void rotateLeft(){
+			/**
+			 * Rotates a maze piece to the left, if it's not already in motion.
+			 */
+			private void rotateLeft(){
 				if(!isMoving) modifyDegrees(90, true);
 			}
 
-			public void rotateRight(){
+			/**
+			 * Rotates the maze piece to the right, if it's not already in motion.
+			 */
+			private void rotateRight(){
 				if(!isMoving) modifyDegrees(-90, true);
 			}
 
+			/**
+			 * Creates the JRE-handled timer that chooses a random direction
+			 * for the maze piece to move in, at a row-dependent offset delay
+			 * and at a song/level dependent frequency. This function schedules,
+			 * a recurring task, and only needs to be called once per level.
+			 */
+			private void scheduleMovementTask(){
+				timer.scheduleAtFixedRate(new TimerTask(){
+					public void run(){
+						if(Math.random() < 0.5)
+							rotateLeft();
+						else
+							rotateRight();
+					}
+				}, mazeLevel.rowDelay.get(col), mazeLevel.rotationDelay);
+			}
+
+			/**
+			 * Schedules an AngleTask to run in 5 milliseconds.
+			 * @param desiredAngle Angle that is trying to be reached.
+			 * @param direction The direction that the piece is turning in.<br>
+			 * true for counter-clockwise, false for clockwise.
+			 */
 			private void scheduleAngleTask(float desiredAngle, boolean direction){
 				isMoving = true;
 				timer.schedule(new AngleTask(desiredAngle, direction), 5);
 			}
 
-			public void scheduleMovementTask(){
-				//print("Scheduling wall movement task");
-				//timer.scheduleAtFixedRate(new MovementTimer(), mazeLevel.rowDelay.get(col), 3000);
-				timer.scheduleAtFixedRate(new TimerTask(){
-					public void run() {
-						if(Math.random() < 0.5){
-							rotateLeft();
-						}
-						else rotateRight();
-					}
-				}, mazeLevel.rowDelay.get(col), mazeLevel.rotationDelay);
-				//timer.schedule(new MovementTimer(), mazeLevel.rowDelay.get(col));
-			}
-
-			/*class MovementTimer extends TimerTask{
-
-				@Override
-				public void run() {
-					if(Math.random() < 0.5){
-						rotateLeft();
-					}
-					else rotateRight();
-				}
-			}*/
-
+			/**
+			 * The custom TimerTask that checks if the piece in motion has
+			 * reached its desired angle yet. If it has, it adjusts the
+			 * final location of the wall piece in case any JRE calculations
+			 * are slightly off. If it hasn't, it schedules itself to run
+			 * again in 5 milliseconds.
+			 */
 			class AngleTask extends TimerTask{
 
 				private boolean direction;
@@ -466,8 +923,12 @@ public class AmazementMain extends Game implements InputProcessor{
 					this.direction = direction;
 				}
 
+				/**
+				 * Manually calculates the exact position and rotation of
+				 * both points of the wall segment.
+				 */
 				@Override
-				public void run() {
+				public void run(){
 					float angle = piece.getAngle();
 					int size = mazeLevel.pieceLength;
 					x2 = (int)(x + size * Math.cos(angle));
@@ -475,558 +936,20 @@ public class AmazementMain extends Game implements InputProcessor{
 					if((angle <= desiredAngle&&direction)||(angle >= desiredAngle&&!direction)) scheduleAngleTask(desiredAngle, direction);
 					else{
 						piece.setAngularVelocity(0);
-						//piece.setTransform(x, y, desiredAngle);
 						setPos = true;
 						if(degrees == 180||degrees == 0){
 							y2 = (int)y;
-							if(degrees == 0) x2++;
+							if(degrees == 0)
+								x2++;
 						}
-						else x2 = (int)x;
-						if(degrees == 90) y2++;
-						//print("x: " + pos.x + ", y: " + pos.y + ", x2: " + x2 + ", y2: " + y2 + ", degrees: " + degrees);
+						else
+							x2 = (int)x;
+						if(degrees == 90)
+							y2++;
 						isMoving = false;
 					}
 				}
 			}
 		}
 	}
-
-	private void print(String string){
-		System.out.println(string);
-	}
-
-	Texture img;
-	TiledMap tiledMap;
-	OrthographicCamera camera;
-	TiledMapRenderer tiledMapRenderer;
-	SpriteBatch sb;
-	Texture texture;
-	Sprite playerSprite;
-
-	boolean leftPressed = false, rightPressed = false, upPressed = false, downPressed = false, gravity = false, drawCollision = false, resetPosition = false, displayLevel = false, keepDisplayLevel = false, lowRes = false, paused = false, gameOver = false, soManyFail = false;
-
-	World world;
-	Box2DDebugRenderer debugRenderer;
-	Body playerBody, objectiveBody;
-	EdgeBody edgeBody;
-	Array<Body> bodies = new Array<Body>();
-	Maze maze;
-	Sound collisionSound;
-
-	//ParticleEffect collisionEffect;
-
-	Timer timer;
-
-	BitmapFont font;
-
-	Clip clip;
-
-	String songPath;
-
-	double songDuration;
-
-	public AmazementMain(int height, int width, String songPath){
-		this.height = height;
-		this.width = width;
-		if(songPath == null) this.songPath = "/Users/Jack/Amazement Songs/Satisfaction.wav";
-		else this.songPath = songPath;
-	}
-
-	/*public AmazementMain(int height, int width, DesktopLauncher desktopLauncher){
-		this.height = height;
-		this.width = width;
-		this.desktopLauncher = desktopLauncher;
-	}*/
-
-	private void displayLevel(){
-		displayLevel = true;
-		timer.schedule(new TimerTask(){
-
-			@Override
-			public void run() {
-				if(paused) keepDisplayLevel = true;
-				displayLevel = false;
-			}}, 1500);
-	}
-
-	private void createPlayer(){
-		if(lowRes) texture = new Texture(Gdx.files.internal("player24.png"));
-		else texture = new Texture(Gdx.files.internal("player48.png"));
-		//if(width == 512) texture.
-		playerSprite = new Sprite(texture);
-
-		//PolygonShape boxShape = new PolygonShape();
-		CircleShape circleShape = new CircleShape();
-		//boxShape.setAsBox(20, 20);
-		circleShape.setRadius(playerBodyScale);
-		BodyDef bodyDef = new BodyDef();
-		bodyDef.position.set(50, 50);
-		bodyDef.type = BodyType.DynamicBody;
-		bodyDef.fixedRotation = false;
-		playerBody = world.createBody(bodyDef);
-		FixtureDef boxFixtureDef = new FixtureDef();
-		//boxFixtureDef.shape = boxShape;
-		boxFixtureDef.shape = circleShape;
-		boxFixtureDef.restitution = 0.75f;
-		boxFixtureDef.density = 0f;
-		playerBody.createFixture(boxFixtureDef);
-		//boxShape.dispose();
-		circleShape.dispose();
-		playerBody.setUserData(playerSprite);
-		//playerBody.setAngularVelocity(1);
-	}
-
-	private void spinPlayer(boolean dir){
-		float vel = playerBody.getAngularVelocity();
-		double velMod = 0;
-		if(dir){
-			if(vel > 0) velMod++;
-			else{
-				//print(vel + "");
-				if(vel > -2) velMod+=1.5;//playerBody.setAngularVelocity(vel*-1);
-				else velMod=+3;
-			}
-		}
-		else{
-			if(vel > 0){
-				if(vel < 2) velMod-=1.5;//playerBody.setAngularVelocity(vel*-1);
-				else velMod=-3;
-			}
-			else velMod--;
-		}
-		if(Math.abs(vel+velMod) <= 7) playerBody.setAngularVelocity(vel+(float)velMod);
-		//print(playerBody.getAngularVelocity() + "");
-		//playerBody.setAngularVelocity(playerBody.getAngularVelocity()*-1);
-	}
-
-	public class PauseScreen implements Screen{
-
-		@Override
-		public void show() {
-		}
-
-		@Override
-		public void render(float delta) {
-		}
-
-		@Override
-		public void resize(int width, int height) {
-		}
-
-		@Override
-		public void pause() {
-		}
-
-		@Override
-		public void resume() {
-		}
-
-		@Override
-		public void hide() {
-		}
-
-		@Override
-		public void dispose() {
-		}
-
-	}
-
-	@Override public void pause(){
-		if(!paused){
-			//print("System paused game");
-			paused = true;
-			clip.stop();
-		}
-	}
-
-	@Override public void resume(){
-		//print("RESUMED FOCUS");
-	}
-
-	private void pauseGame(){
-		if(!paused){
-			//print("User paused game");
-			paused = true;
-			//if(displayLevel) keepDisplayLevel = true;
-			clip.stop();
-		}
-		else{
-			//print("User unpaused game");
-			paused = false;
-			clip.start();
-			if(keepDisplayLevel) keepDisplayLevel = false;
-		}
-	}
-
-	@Override public void create () {
-		//print("Creating amazement");
-		//
-		Box2D.init();
-		//if(!firstRun)
-		//if(setSize)
-		Gdx.graphics.setDisplayMode(width, height, false);
-		Gdx.graphics.setTitle("Amazement");
-		//height = Gdx.graphics.getHeight();
-		//width = Gdx.graphics.getWidth();
-
-		font = new BitmapFont();
-
-		if(width == 512){
-			lowRes = true;
-			playerBodyScale = 12;
-			//playerSpriteScale = 24;
-			playerOffset = 12;
-			textX = 190;
-			textY = 290;
-			font.setScale(3);
-			tiledMap = new TmxMapLoader().load("map512.tmx");
-		}
-		else{
-			font.setScale(5);
-			tiledMap = new TmxMapLoader().load("map1024.tmx");
-		}
-
-		try {
-			clip = AudioSystem.getClip();
-			clip.open(AudioSystem.getAudioInputStream(new BufferedInputStream(new FileInputStream(songPath))));
-			//clip.setMicrosecondPosition(220000000);
-			clip.start();
-			long frames = clip.getFrameLength();
-			songDuration = (frames+0.0) / clip.getFormat().getFrameRate();
-			print("Duration: " + songDuration);
-			print("Frame rate: " + clip.getFormat().getFrameRate());
-			clip.addLineListener(new LineListener(){
-
-				@Override
-				public void update(LineEvent event) {
-					if (event.getType() == LineEvent.Type.STOP) {
-						if((int)clip.getMicrosecondPosition()/1000000 == (int)songDuration){
-							print("Song should be over");
-							maze.resetAll(true);
-							soManyFail = true;
-						}
-					}
-				}});
-		} catch (Exception e) {
-			System.err.println(e.getMessage());
-		}
-		/*clip.addLineListener(new LineListener(){
-
-			@Override
-			public void update(LineEvent event) {
-				// TODO Auto-generated method stub
-				print("Updating line: " + event.getLine());
-
-			}});*/
-
-		camera = new OrthographicCamera();
-		camera.setToOrtho(false,width,height);
-		camera.update();
-		//if(Gdx.graphics.getWidth() == 512) tiledMapRenderer = new OrthogonalTiledMapRenderer(tiledMap, 1/2);
-		tiledMapRenderer = new OrthogonalTiledMapRenderer(tiledMap);
-		//tiledMapRenderer.setView(camera.combined, width, height, width, height);
-		Gdx.input.setInputProcessor(this);
-		world = new World(new Vector2(0, 0), false); 
-		debugRenderer = new Box2DDebugRenderer();
-		timer = new Timer();
-
-		collisionSound = Gdx.audio.newSound(Gdx.files.internal("pew.wav"));
-		//collisionSound.setVolume(soundId, volume);
-
-		world.setContactListener(new ContactListener() {
-			@Override
-			public void beginContact(Contact contact) {
-				//print(playerBody.getAngle() + "");
-				//playerBody.applyAngularImpulse(50, false);
-				//playerBody.applyTorque(50, true);
-				//playerBody.setAngularVelocity(1);
-				//playerBody.
-				collisionSound.play((float) .2);
-				//print("CONTACT");
-				Body a=contact.getFixtureA().getBody();
-				Body b=contact.getFixtureB().getBody();
-				//for (int i = 0; i < contact.getWorldManifold().getNumberOfContactPoints(); i++) {
-				float x = contact.getWorldManifold().getPoints()[0].x;
-				float y = contact.getWorldManifold().getPoints()[0].y;
-				//print("Post: " + playerBody.getLinearVelocity());
-				Vector2 vel = playerBody.getLinearVelocity();
-				if(vel.x != 0&&vel.y != 0){
-					int deg = (int) (MathUtils.radiansToDegrees*a.getAngle());
-					if(vel.x > 0){
-						if(vel.y > 0){
-							if(deg == 0||deg == 180) spinPlayer(true);
-							else spinPlayer(false);
-						}
-						else{
-							if(deg == 90||deg == 270) spinPlayer(true);
-							else spinPlayer(false);
-						}
-					}
-					else{
-						if(vel.y > 0){
-							if(deg == 0||deg == 180) spinPlayer(false);
-							else spinPlayer(true);
-						}
-						else{
-							if(deg == 90||deg == 270) spinPlayer(false);
-							else spinPlayer(true);
-						}
-					}
-				}
-				if(b.getPosition().x > width||b.getPosition().y > height){
-					//sprite.setPosition(500, 500);
-					resetPosition = true;
-				}
-				/*drawCollision = true;
-				timer.schedule(new TimerTask(){
-
-					@Override
-					public void run() {
-						print("CANCELLING");
-						drawCollision = false;
-					}}, 100);*/
-			}
-
-			@Override
-			public void endContact(Contact contact) {
-				//crumpit96 or trumpet96
-			}
-
-			@Override
-			public void preSolve(Contact contact, Manifold oldManifold) {
-				//Vector2 vec = playerBody.getLinearVelocityFromWorldPoint(new Vector2(0, 0));
-				//print("Pre: " + playerBody.getLinearVelocity());
-				//print(vec + "");
-			}
-
-			@Override
-			public void postSolve(Contact contact, ContactImpulse impulse) {
-			}
-		});
-
-		sb = new SpriteBatch();
-
-		createPlayer();
-		edgeBody = new EdgeBody();
-		maze = new Maze();
-
-		//ParticleEffectPool effectPool;
-		//Array<PooledEffect> effects = new Array<PooledEffect>();
-
-		//collisionEffect = new ParticleEffect();
-		//collisionEffect.load(Gdx.files.internal("collision_particle"), Gdx.files.internal(""));
-		//collisionEffect.setPosition(950, 950);
-		world.getBodies(bodies);
-		displayLevel();
-		for(MazePiece p : maze.pieces){
-			p.scheduleMovementTask();
-		}
-		//Display.
-	}
-
-	public void render () {
-		Gdx.gl.glClearColor(1, 0, 0, 1);
-		Gdx.gl.glBlendFunc(GL20.GL_SRC_ALPHA, GL20.GL_ONE_MINUS_SRC_ALPHA);
-		Gdx.gl.glClear(GL20.GL_COLOR_BUFFER_BIT);
-		camera.update();
-		tiledMapRenderer.setView(camera);
-		tiledMapRenderer.render();
-		sb.setProjectionMatrix(camera.combined);
-		if(leftPressed) playerBody.applyLinearImpulse(-5, 0, playerBody.getPosition().x, playerBody.getPosition().y, true);
-		if(rightPressed) playerBody.applyLinearImpulse(5, 0, playerBody.getPosition().x, playerBody.getPosition().y, true);
-		if(upPressed) playerBody.applyLinearImpulse(0, 5, playerBody.getPosition().x, playerBody.getPosition().y, true);
-		if(downPressed) playerBody.applyLinearImpulse(0, -5, playerBody.getPosition().x, playerBody.getPosition().y, true);
-		ShapeRenderer shapeRenderer = new ShapeRenderer();
-		shapeRenderer.begin(ShapeType.Line);
-		shapeRenderer.setColor(maze.mazeLevel.color);
-		for(MazePiece mp : maze.pieces){
-			shapeRenderer.line(mp.x, mp.y, mp.x2, mp.y2);
-		}
-		shapeRenderer.end();
-		if(playerBody != null){
-			Vector2 pPos = playerBody.getPosition();
-			shapeRenderer.setColor(Color.WHITE);
-			shapeRenderer.begin(ShapeType.Filled);
-			shapeRenderer.circle(pPos.x, pPos.y, playerBodyScale);
-			shapeRenderer.end();
-		}
-		sb.begin();
-		if(displayLevel||keepDisplayLevel) font.draw(sb, "Level " + maze.mazeLevel.level, textX, textY);
-		if(gameOver) font.draw(sb, "You beat the game!", textX, textY);
-		if(soManyFail) font.draw(sb, "You failed, lel", textX-100, textY);
-		//sprite.draw(sb);
-		// I did not take a look at implementation but you get the idea
-		//sprite.setPosition(x, y); = body.localVector.x;
-		//sprite.y = body.localVector.y;
-		/*for (Body b : bodies) {
-			// Get the body's user data - in this example, our user 
-			// data is an instance of the Entity class
-			Sprite e = (Sprite) b.getUserData();
-
-			if (e != null) {
-				// Update the entities/sprites position and angle
-				e.setPosition(b.getPosition().x-30, b.getPosition().y-24);
-				// We need to convert our angle from radians to degrees
-				e.setRotation(MathUtils.radiansToDegrees * b.getAngle());
-				//e.draw(sb);
-			}
-		}*/
-		//if(drawCollision){
-		//collisionEffect.setPosition(body.getPosition().x, body.getPosition().y);
-		//collisionEffect.draw(sb, Gdx.graphics.getDeltaTime());
-		//}
-		for(MazePiece p : maze.pieces){
-			if(p.setPos){
-				p.setPos = false;
-				p.piece.setTransform(p.x, p.y, p.desiredAngle);
-			}
-		}
-		if(resetPosition){
-			resetPosition = false;
-			maze.mazeLevel.nextLevel();
-		}
-		if(playerBody != null){
-			Sprite e = (Sprite)playerBody.getUserData();
-			Vector2 pPos = playerBody.getPosition();
-			e.setRotation(MathUtils.radiansToDegrees*playerBody.getAngle());
-			e.setPosition(pPos.x-playerOffset, pPos.y-playerOffset);
-			e.draw(sb);
-		}
-		sb.end();
-		if(paused){
-			Gdx.gl.glEnable(GL20.GL_BLEND);
-			Gdx.gl.glBlendFunc(GL20.GL_SRC_ALPHA, GL20.GL_ONE_MINUS_SRC_ALPHA);
-			//shapeRenderer.setProjectionMatrix(camera.combined);
-			shapeRenderer.begin(ShapeType.Filled);
-			shapeRenderer.setColor(new Color(0, 0, 0, 0.5f));
-			//shapeRenderer.setColor(Color.GRAY);
-			shapeRenderer.rect(0, 0, width, height);
-			shapeRenderer.end();
-			Gdx.gl.glDisable(GL20.GL_BLEND);
-			//font.draw(sb, "Paused", textX, textY);
-		}
-		//debugRenderer.render(world, camera.combined);
-		if(!paused) world.step(1/60f, 6, 2);
-		//world.step(Gdx.graphics.getDeltaTime(), 8, 3);
-	}
-
-	@Override
-	public boolean keyDown(int keycode) {
-		if(!paused&&!gameOver&&!soManyFail){
-			if(keycode == Input.Keys.LEFT)
-				leftPressed = true;
-			//body.applyLinearImpulse(-5, 0, body.getPosition().x, body.getPosition().y, true);
-			if(keycode == Input.Keys.RIGHT)
-				rightPressed = true;
-			//body.applyLinearImpulse(5, 0, body.getPosition().x, body.getPosition().y, true);
-			if(keycode == Input.Keys.UP)
-				upPressed = true;
-			//body.applyLinearImpulse(0, 5, body.getPosition().x, body.getPosition().y, true);
-			if(keycode == Input.Keys.DOWN)
-				downPressed = true;
-			//body.applyLinearImpulse(0, -5, body.getPosition().x, body.getPosition().y, true);
-		}
-		if(keycode == Input.Keys.ESCAPE)
-			pauseGame();
-		if(keycode == Input.Keys.S){
-			//Thread t = new Thread(new AudioHandler("/Users/Jack/Satisfaction.wav"));
-			//t.run();
-			if(clip.isActive()){
-				print("Music playing, stopping now");
-				clip.stop();
-			}
-			else{
-				print("Music not playing, playing now");
-				clip.start();
-			}
-		}
-		return false;
-	}
-
-	@Override
-	public boolean keyTyped(char character) {
-		return false;
-	}
-
-	@Override public boolean keyUp(int keycode) {
-		if(!paused&&!gameOver&&!soManyFail){
-			if(keycode == Input.Keys.LEFT) leftPressed = false;
-			if(keycode == Input.Keys.RIGHT) rightPressed = false;
-			if(keycode == Input.Keys.UP) upPressed = false;
-			if(keycode == Input.Keys.DOWN) downPressed = false;
-			if(keycode == Input.Keys.NUM_1)
-				tiledMap.getLayers().get(0).setVisible(!tiledMap.getLayers().get(0).isVisible());
-			if(keycode == Input.Keys.NUM_2)
-				tiledMap.getLayers().get(1).setVisible(!tiledMap.getLayers().get(1).isVisible());
-			if(keycode == Input.Keys.B){
-				playerBody.setLinearVelocity(0, 0);
-			}
-			if(keycode == Input.Keys.G)
-				if(gravity){
-					world.setGravity(new Vector2(0, 0));
-					gravity = false;
-				}
-				else{
-					world.setGravity(new Vector2(0, -100));
-					gravity = true;
-				}
-			if(keycode == Input.Keys.R)
-				maze.turnAllRight();
-			if(keycode == Input.Keys.L)
-				maze.turnAllLeft();
-		}
-		return false;
-	}
-
-	public boolean touchDown(int screenX, int screenY, int pointer, int button) {
-		if(!paused&&playerBody != null){
-			Vector3 clickCoordinates = new Vector3(screenX,screenY,0);
-			Vector3 position = camera.unproject(clickCoordinates);
-			playerSprite.setPosition(position.x, position.y);
-			playerBody.setTransform(position.x, position.y, playerBody.getAngle());
-		}
-		return true;
-	}
-
-	@Override public boolean touchUp(int screenX, int screenY, int pointer, int button) {
-		return false;
-	}
-
-	@Override public boolean touchDragged(int screenX, int screenY, int pointer) {
-		return false;
-	}
-
-	@Override public boolean mouseMoved(int screenX, int screenY) {
-		return false;
-	}
-
-	@Override public boolean scrolled(int amount) {
-		return false;
-	}
-
 }
-/*SpriteBatch batch;
-	Texture img;
-	Sprite sprite;
-
-	@Override
-	public void create () {
-		batch = new SpriteBatch();
-		img = new Texture("badlogic.jpg");
-		sprite = new Sprite(img, 0, 0, 200, 200);
-		sprite.setPosition(10, 10);
-		sprite.setRotation(45);
-		sprite.set
-	}
-
-	@Override
-	public void render () {
-		Gdx.gl.glClearColor(1, 0, 0, 1);
-		Gdx.gl.glClear(GL20.GL_COLOR_BUFFER_BIT);
-		batch.begin();
-		//batch.draw(img, 0, 0);
-		sprite.draw(batch);
-		batch.end();
-	}
-}
- */

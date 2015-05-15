@@ -1,324 +1,205 @@
 package com.gmail.jackbcousineau.desktop;
 
-import java.awt.BorderLayout;
-import java.awt.Canvas;
-import java.awt.Dimension;
 import java.awt.event.ActionEvent;
 import java.awt.event.ActionListener;
-import java.awt.event.FocusEvent;
-import java.awt.event.FocusListener;
+import java.awt.event.KeyAdapter;
 import java.awt.event.KeyEvent;
-import java.awt.event.KeyListener;
-import java.awt.event.WindowEvent;
-import java.awt.event.WindowFocusListener;
-import java.io.BufferedInputStream;
-import java.io.FileInputStream;
-import java.io.IOException;
 
-import javax.sound.sampled.AudioFormat;
-import javax.sound.sampled.AudioInputStream;
-import javax.sound.sampled.AudioSystem;
-import javax.sound.sampled.Clip;
-import javax.sound.sampled.LineUnavailableException;
-import javax.sound.sampled.UnsupportedAudioFileException;
-import javax.swing.AbstractAction;
 import javax.swing.JButton;
-import javax.swing.JCheckBox;
 import javax.swing.JComboBox;
 import javax.swing.JFileChooser;
 import javax.swing.JFrame;
 import javax.swing.JLabel;
 import javax.swing.JPanel;
-import javax.swing.KeyStroke;
 import javax.swing.SpringLayout;
-import javax.swing.SwingUtilities;
 import javax.swing.filechooser.FileNameExtensionFilter;
 
-import com.apple.eawt.AppEvent.QuitEvent;
-import com.apple.eawt.Application;
-import com.apple.eawt.QuitHandler;
-import com.apple.eawt.QuitResponse;
-import com.badlogic.gdx.ApplicationListener;
-import com.badlogic.gdx.Gdx;
-import com.badlogic.gdx.LifecycleListener;
-import com.badlogic.gdx.Graphics.DisplayMode;
 import com.badlogic.gdx.backends.lwjgl.LwjglApplication;
 import com.badlogic.gdx.backends.lwjgl.LwjglApplicationConfiguration;
-import com.badlogic.gdx.backends.lwjgl.LwjglGraphics;
-import com.badlogic.gdx.backends.lwjgl.LwjglGraphics.SetDisplayModeCallback;
 import com.gmail.jackbcousineau.AmazementMain;
-import com.gmail.jackbcousineau.AudioHandler;
 
+/**
+ * The DesktopLauncher class; the PC-specific module of a libgdx game
+ * that passes a PC-friendly instance of the ambiguous main game object into
+ * a LWJGL (LightWeight Java Game Library) handler.
+ */
 public class DesktopLauncher{
-	
-	private AudioThread audioThread;
-	
-	private class AudioThread extends Thread{
-		
-		AudioHandler audioHandler;
-		String path;
-		
-		public AudioThread(String path){
-			this.path = path;
-		}
-		
-		public void run(){
-			System.out.println("Running audio thread");
-			try {
-				audioHandler = new AudioHandler(path);
-			} catch (Exception e){
-			}
-		}
-	}
 
-	private void p(String str){
-		System.out.println(str);
-	}
-	LwjglApplicationConfiguration config;
-
-	MainWindowFrame mainWindowFrame;
-
-	static DesktopLauncher desktopLauncher;
-
+	/**
+	 * The LWJGL application instance, contains the
+	 * actual AmazementMain game instance once started.
+	 */
 	LwjglApplication app;
 	
-	
+	/**
+	 * The LWJGL configuration object, stored to edit resolution data if changed
+	 * in the main menu. Gets passed onto the LWJGL engine when the game is started.
+	 */
+	LwjglApplicationConfiguration config;
+
+	/**
+	 * The width and height that will be given to the LWJGL config
+	 * when the game is started. These dimensions would be directly-
+	 * stored in the config itself, but a bug in the current version
+	 * of LWJGL prevents that functionality from consistently working.
+	 */
 	int width = 1024, height = 1024;
-	
+
+	/**
+	 * The path to the .wav file to use for the game,
+	 * set when a file is selected in the main menu.
+	 */
 	String filePath = null;
 
-	//public boolean gameRunning = false;
-
-	//QuitHandler quitHandler;
-
-	//DisplayMode dm;
-
-	//LwjglFrame gameFrame;
-
-	//LwjglGraphics graphics;
-
-	public static void main (String[] arg) {
-		desktopLauncher = new DesktopLauncher();
-
+	/**
+	 * Implementation of main Java method, simply creates the initial DesktopLauncher object.
+	 */
+	public static void main (String[] arg){
+		new DesktopLauncher();
 	}
-	
-	private void createConfig(){
+
+	/**
+	 * Constructs new DesktopLauncher, the game's LWJGL config
+	 * that we modify to give the game's window certain behaviors,
+	 * and the main menu GUI built on Swing.
+	 */
+	public DesktopLauncher(){
 		config = new LwjglApplicationConfiguration();
-		//default height 480, width 640
 		config.fullscreen = false;
 		config.height = height;
 		config.width = width;
 		config.resizable = false;
 		config.forceExit = false;
-		p("Created config");
+		new MainWindowFrame();
 	}
 
-	public DesktopLauncher(){
-		createConfig();
-		/*LwjglGraphics.SetDisplayModeCallback j = new LwjglGraphics.SetDisplayModeCallback() {
-			@Override
-			public LwjglApplicationConfiguration onFailure(LwjglApplicationConfiguration initialConfig) {
-				p("CONFIG FAILURE");
-				return null;
-			}
-		};
-		config.setDisplayModeCallback = j;*/
-		//dm = new DisplayMode(config.width, config.height, 0, 32);
-		//System.out.println(config.height + ", " + config.width);
-		mainWindowFrame = new MainWindowFrame();
-		//GUIThread thread = new GUIThread();
-		//thread.run();
-		//startGame();
-		//app
-	}
-
-	/*private void readDisplayMode(){
-		dm = graphics.getDesktopDisplayMode();
-		int h = dm.height;
-		int w = dm.width;
-		int b = dm.bitsPerPixel;
-		int r = dm.refreshRate;
-		p(h + ", " + w + ", " + b + ", " + r);
-	}*/
-
-	private void startGame(){
-		config.width = width;
-		config.height = height;
-		p("Starting with " + config.width + ", " + config.height);
-		if(app != null){
-		//Gdx.app.postRunnable();
-		//app.stop();
-		//p("G: " + config.width + ", " + config.height);
-		//Gdx.graphics.setDisplayMode(config.width, config.height, false);
-		//app = new LwjglApplication(new AmazementMain(height, width, false), config, graphics);
-			//p("Not null");
-		}
-		//LwjglGraphics lwjglGraphics = new LwjglGraphics(config);
-		//else{
-		app = new LwjglApplication(new AmazementMain(config.height, config.width, filePath), config);
-		//graphics = app.getGraphics();
-		//p(graphics.setDisplayMode(width, height, false) + "");
-		//}
-		//readDisplayMode();
-		//app = new LwjglApplication(new AmazementMain(height, width), config);
-		//Canvas canvas = new Canvas();
-		//app = new LwjglApplication(new AmazementMain(height, width), config, canvas);
-		//gameFrame = new LwjglFrame(new AmazementMain(height, width), config);
-		//gameFrame.setVisible(true);
-		//for(DisplayMode dm : app.getGraphics().getDisplayModes()){
-		//p(dm.toString());
-		//	}
-		//readDisplayMode();
-		//app.getGraphics().setDisplayMode(width, height, false);
-		//readDisplayMode();
-
-		//p("Density " + app.getGraphics().);
-		//System.out.println(config.height + ", " + config.width);
-		// create an LwjglFrame with your configuration and the listener
-		/*LwjglFrame frame = new LwjglFrame(new AmazementMain(), config);
-
-	    // add a component listener for when the frame gets moved
-	    frame.addComponentListener(new ComponentAdapter() {
-	        @Override
-	        public void componentMoved(ComponentEvent e) {
-	            // somehow pause your game here
-	        }
-	    });
-
-	    // set the frame visible
-	    frame.setVisible(true);*/
-		app.addLifecycleListener(new LifecycleListener(){
-
-			@Override
-			public void pause() {
-			}
-
-			@Override
-			public void resume() {
-			}
-
-			@Override
-			public void dispose() {
-				//p("CLOSED");
-				//gameRunning = false;
-				mainWindowFrame.requestFocus();
-			}});
-		//gameRunning = true;
-	}
-
-	/*class GUIThread extends Thread{
-
-		@Override
-		public void run(){
-			mainWindowFrame = new MainWindowFrame();
-		}
-	}*/
-
-
-
+	/**
+	 * The MainWindowFrame class, built on the Swing framework. Extends the default
+	 * JFrame, and contains all the elements of the main menu GUI.
+	 */
 	class MainWindowFrame extends JFrame{
 
+		/**
+		 * Recommended inclusion of a serialVersionUID.
+		 */
 		private static final long serialVersionUID = 4022199660289052400L;
 
-		//public boolean MAC_OS_X = (System.getProperty("os.name").toLowerCase().startsWith("mac os x"));
-
-		JButton startButton, chooseFile;
-		JLabel fileLabel, resolutionLabel;
-		JComboBox<String> resolutionBox;
-		JCheckBox fullscreenCheckBox;
-
-		//boolean inRestoringState = true, cmdPressed = false, qPressed = false;
-
+		/**
+		 * Constructs a new MainWindowFrame.
+		 */
 		public MainWindowFrame(){
+			/**
+			 * Super constructor for the enclosing JFrame,
+			 * sets default dimensions and behavior.
+			 */
 			super("Amazement");
 			setSize(300, 250);
 			setLocationRelativeTo(null);
 			setDefaultCloseOperation(EXIT_ON_CLOSE);
 			setResizable(false);
 
+			/**
+			 * Sets a new JPanel as the base element of the
+			 * JFrame, organized semantically by a SpringLayout.
+			 */
 			JPanel pane = new JPanel();
 			getContentPane().add(pane);
 			SpringLayout layout = new SpringLayout();
 			pane.setLayout(layout);
 
-			resolutionLabel = new JLabel("Resolution");
+			/**
+			 * Sets up the resolution-setting combo-box and label.
+			 */
+			JLabel resolutionLabel = new JLabel("Resolution");
 			pane.add(resolutionLabel);
-
-			fileLabel = new JLabel("No file chosen");
-			pane.add(fileLabel);
-
-			resolutionBox = new JComboBox<String>();
+			JComboBox<String> resolutionBox = new JComboBox<String>();
 			resolutionBox.addItem("1024 x 1024");
 			resolutionBox.addItem("512 x 512");
 			resolutionBox.setFocusable(false);
-			pane.add(resolutionBox);
-
 			resolutionBox.addActionListener(new ActionListener(){
 
+				/**
+				 * Combo-box listener, changes height and width
+				 * based on which of the two boxes is selected.
+				 */
 				@Override
 				public void actionPerformed(ActionEvent event){
 					@SuppressWarnings("unchecked")
 					JComboBox<String> box = (JComboBox<String>)event.getSource();
 					if(box.getSelectedItem() == "1024 x 1024"){
-						//config.
 						height = 1024;
-						//config.
 						width = 1024;
 					}
 					else if(box.getSelectedItem() == "512 x 512"){
-						//config.
 						height = 512;
-						//config.
 						width = 512;
 					}
 				}
 			});
+			pane.add(resolutionBox);
 
-			fullscreenCheckBox = new JCheckBox();
-			fullscreenCheckBox.setFocusable(false);
-			//pane.add(fullscreenCheckBox);
-
-			startButton = new JButton("Start");
+			/**
+			 * Sets up the Start button.
+			 */
+			JButton startButton = new JButton("Start");
 			startButton.setFocusable(false);
 			pane.add(startButton);
-
 			startButton.addActionListener(new ActionListener(){
 
+				/**
+				 * Sets the LWJGL config to the values stored in width and height, and passes
+				 * those values, along with the chosen filepath, to LWJGL to start the game itself.
+				 */
 				@Override
-				public void actionPerformed(ActionEvent e) {
-					startGame();
-				}});
-
-			chooseFile = new JButton("Choose file");
+				public void actionPerformed(ActionEvent e){
+					config.width = width;
+					config.height = height;
+					app = new LwjglApplication(new AmazementMain(config.height, config.width, filePath), config);
+				}
+			});
+			
+			/**
+			 * Sets up the Choose File button and label.
+			 */
+			final JLabel fileLabel = new JLabel("No file chosen");
+			pane.add(fileLabel);
+			JButton chooseFile = new JButton("Choose file");
 			chooseFile.setFocusable(false);
-			pane.add(chooseFile);
 			chooseFile.addActionListener(new ActionListener(){
 
+				/**
+				 * Opens a native interface for local file selection, filtered
+				 * for .wav files. Passes the path on to filePath successful.
+				 */
 				@Override
-				public void actionPerformed(ActionEvent e) {
+				public void actionPerformed(ActionEvent e){
 					JFileChooser chooser = new JFileChooser();
-					FileNameExtensionFilter filter = new FileNameExtensionFilter(
-							".wav files", "wav");
-					chooser.setFileFilter(filter);
+					chooser.setFileFilter(new FileNameExtensionFilter(".wav files", "wav"));
 					int returnVal = chooser.showOpenDialog(null);
-					if(returnVal == JFileChooser.APPROVE_OPTION) {
-						System.out.println("You chose to open this file: " +
-								chooser.getSelectedFile().getName());
+					if(returnVal == JFileChooser.APPROVE_OPTION){
 						fileLabel.setText("File: " + chooser.getSelectedFile().getName());
-						try {
-							//audioThread = new AudioThread(chooser.getSelectedFile().getPath());
-							//audioThread.start();
-							//audioThread.run();
-							//playSound(chooser.getSelectedFile().getPath());
-							//new AudioHandler(chooser.getSelectedFile().getPath());
-							filePath = chooser.getSelectedFile().getPath();
-						} catch (Exception ex) {
-						}
+						filePath = chooser.getSelectedFile().getPath();
 					}
 				}
+			});
+			pane.add(chooseFile);
 
+			/**
+			 * Manually implements a Command + Q function to quit the
+			 * app if needed, gets overwritten by LWJGL otherwise. 
+			 */
+			addKeyListener(new KeyAdapter(){
+
+				@Override
+				public void keyPressed(KeyEvent e){
+					if(e.getKeyChar() == 'q'&&e.isMetaDown())
+						System.exit(0);
+				}
 			});
 
+			/**
+			 * Defines Swing SpringLayout constraints for each GUI element.
+			 */
 			layout.putConstraint(SpringLayout.HORIZONTAL_CENTER, startButton, 0, SpringLayout.HORIZONTAL_CENTER, pane);
 			layout.putConstraint(SpringLayout.SOUTH, startButton, -15, SpringLayout.SOUTH, pane);
 
@@ -334,135 +215,10 @@ public class DesktopLauncher{
 			layout.putConstraint(SpringLayout.HORIZONTAL_CENTER, fileLabel, 0, SpringLayout.HORIZONTAL_CENTER, pane);
 			layout.putConstraint(SpringLayout.NORTH, fileLabel, 0, SpringLayout.SOUTH, chooseFile);
 
+			/**
+			 * Finally enables the entire frame itself to be seen, after setup is complete.
+			 */
 			setVisible(true);
-
-			/*if(MAC_OS_X){
-				//OSXAdapter.
-				//this.
-				quitHandler = new QuitHandler(){
-
-					@Override
-					public void handleQuitRequestWith(QuitEvent qe, QuitResponse qr) {
-						p("APPLE QUITTING");
-						qr.performQuit();
-					}
-
-				};
-				//Application.getApplication().setQuitHandler(quitHandler);
-			}
-
-			/*addFocusListener(new FocusListener(){
-
-				@Override
-				public void focusGained(FocusEvent e) {
-					p("GAINED FOCUS");
-					//Application.getApplication().setQuitHandler(quitHandler);
-				}
-
-				@Override
-				public void focusLost(FocusEvent e) {
-					p("LOST FOCUS");
-				}
-
-			});*/
-
-			addKeyListener(new KeyListener(){
-
-				@Override
-				public void keyTyped(KeyEvent e) {
-				}
-
-				@Override
-				public void keyPressed(KeyEvent e) {
-					if(e.getKeyChar() == 'q'&&e.isMetaDown()){
-						p("Should quit");
-						System.exit(0);
-					}
-					if(e.getKeyChar() == 'p'){
-						p("Pause pressed");
-						//audioHandler.pause();
-					}
-				}
-
-				@Override
-				public void keyReleased(KeyEvent e) {
-				}});
-
-			/*if(!inRestoringState) addWindowFocusListener(new WindowFocusListener() {
-
-				@Override
-				public void windowGainedFocus(WindowEvent arg0) {
-					p("window gained focus");
-					if(!gameRunning) SwingUtilities.invokeLater( new Runnable() {
-						public void run() {
-							if(!inRestoringState){
-								inRestoringState = true;
-								setVisible(false);
-								setVisible(true);
-								requestFocus();
-							} else {
-								inRestoringState = false;
-							}
-						}
-					} );
-					p("refreshed");
-				}
-
-				@Override
-				public void windowLostFocus(WindowEvent arg0) {
-					p("LOST FOCUS");
-				}
-
-			});*/
-			setFocusCycleRoot(true);
 		}
 	}
-	
-	/*
-	 * 	
-	public static synchronized void playSound(final String url) {
-		  new Thread(new Runnable() {
-		  // The wrapper thread is unnecessary, unless it blocks on the
-		  // Clip finishing; see comments.
-		    public void run() {
-		      try {
-		        Clip clip = AudioSystem.getClip();
-		        clip.open(AudioSystem.getAudioInputStream(new BufferedInputStream(new FileInputStream(url))));
-		        clip.start(); 
-		      } catch (Exception e) {
-		        System.err.println(e.getMessage());
-		      }
-		    }
-		  }).start();
-		}
-	 */
-
-	public class LwjglFrame extends JFrame{
-
-		private final Canvas canvas;
-
-		public LwjglFrame(final ApplicationListener listener, final LwjglApplicationConfiguration config) {
-			canvas = new Canvas(){
-
-				public final void addNotify () {
-					super.addNotify();
-					app = new LwjglApplication(listener, config, canvas);
-				}
-
-				public final void removeNotify () {
-					app.stop();
-					super.removeNotify();
-				}
-			};
-			canvas.setIgnoreRepaint(true);
-			canvas.setFocusable(true);
-
-			setLayout(new BorderLayout());
-			setDefaultCloseOperation(JFrame.DISPOSE_ON_CLOSE);
-			add(canvas, BorderLayout.CENTER);
-			setPreferredSize(new Dimension(config.width, config.height));
-			pack();
-		}
-	}
-
 }
